@@ -168,13 +168,13 @@ The analysis starts here
 '''
 
 if not os.path.isdir('outputs'):
-    os.mkdir('outputs')
+    os.makedirs('outputs')
 
 if not os.path.isdir('outputs/'+main_out_dir):
-    os.mkdir('outputs/'+main_out_dir)
+    os.makedirs('outputs/'+main_out_dir)
 
 if not os.path.isdir('outputs/'+main_out_dir+'/combined'):
-    os.mkdir('outputs/'+main_out_dir+'/combined')
+    os.makedirs('outputs/'+main_out_dir+'/combined')
 
 #Output file for parameter averages
 out_MEAN_fname  = os.path.abspath('outputs/'+main_out_dir+'/combined/MEAN_values.txt')
