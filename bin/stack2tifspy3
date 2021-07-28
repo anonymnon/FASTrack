@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+import os
+import sys
+import argparse
+import warnings
+
+from FAST import motility
+
+#Suppress all the warnings
+warnings.filterwarnings("ignore")
+
+#Definition of the program
+usage            = ['%(prog)s -d [DIRECTORY]',
+                    '------------------------------------------------------------------------',
+                    'stack2tifs: Utility function to convert stack files to tifs in a folder',
+                    '            and auto-optimize images in ImageJ',
+                    '7/21/2021',
+                    'Ankit Garg',
+                    '',
+                    '',
+                    'This is a specific version created to explode image stacks, optimize the'
+                    'image with ImageJ, and extract elapsed times from MicroManager metadata,'
+                    'and write them in a way that is compatible with FAST. This program'
+                    'requires Python 3 to run the ImageJ module. You must switch to an'
+                    'environment that is running Python 3. Note that FAST will not run with'
+                    'Python 3, so you must switch back to Python 2.7 to complete your'
+                    'analysis.'
+                    '------------------------------------------------------------------------'
+                    ]
+
+#Create the parser
+parser = argparse.ArgumentParser(description='',usage='\n'.join(usage)) 
+parser.add_argument('-d',help='top directory of the stack files to be converted to tif files')
+parser.add_argument('-s',help='Lower bound for the size(Mbytes) of tif files to be converted',default=6,type=float)
+parser.add_argument('-f',help='Frame rate for the movies',default=1,type=float)
+parser.add_argument('-t',help='Use elapsed times from Micromanager *_metadata.txt file where * = same file name as image stack. To activate, write "y" or "yes". "f" argument will be ignored.',default=False)
+args = parser.parse_args()
+args_dict = vars(args)
+parser.print_help()
+
+
+#Get the argument
+main_dir   = args_dict['d']
+min_size   = args_dict['s']
+frame_rate = args_dict['f']
+extract_metadata = args_dict['t']
+
+#Check if the directory exists
+if main_dir == None or not os.path.isdir(main_dir):
+    sys.exit("\nDirectory doesn't exist. Program is exiting.")
+
+'''
+Recurse through each data directory
+'''
+for root, subFolders, files in os.walk(main_dir):
+    if len(subFolders) == 0:
+        tif_files = filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif', files)
+        for tif_file in tif_files:
+            motility.stack_to_tiffs_py3(root+'/'+tif_file,frame_rate,extract_metadata)
