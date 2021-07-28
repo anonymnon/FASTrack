@@ -60,7 +60,7 @@ After installation don't move the FAST directory to some other location.
 - (Update by Ankit 7/27/2021) The prior stack2tifs script did not universally handle files captured from Micromanager. The updated stack2tifspy3 takes a directory containing an image stack, explodes the stack into individual frames, autoenhances the images using ImageJ, and saves the new frame with names that are compatible with the original FAST program. If the directory contains a *_metadata.txt file where * = the exact same name as the image, the elapsed times will be extracted and written to a new metadata file that is compatible with the original FAST program. If no metadata file exists, the program will write a metadata file based on the frame rate provided by the "-f" argument. THIS SCRIPT MUST BE RUN UNDER A PYTHON 3 ENVIRONMENT since the ImageJ module requires Python 3. Recommend creating a Python 3 environment, running this script, then switching back to a Python 2.7 environment to continue the analysis.
    
      ```
-    stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE
+    stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE
      ```
 
 - **DIRECTORY** is the top directory in which tiff stacks are stored.
