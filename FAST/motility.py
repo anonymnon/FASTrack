@@ -38,6 +38,8 @@ from scipy.stats    import kde
 
 import cv2
 
+from importlib import import_module
+
 #Global variables/structures
 sqr_1   = square(1)    #Square with a radius of 1 pixel
 sqr_2   = square(2)    #Square with a radius of 2 pixels
@@ -82,6 +84,97 @@ def stack_to_tiffs(fname, frame_rate=1.0):
         f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
         elapsed_time_ms += 1000*1.0/frame_rate
     f.close()
+
+def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
+    '''
+    MUST BE RUN UNDER PYTHON 3 ENVIRONMENT
+    Read and convert tiff stack file to individual files
+    Imports ImageJ on execution of this function to prevent loading
+        java when running the main program
+    '''
+    # Import latest version of ImageJ
+    ij = import_module('imagej')
+    ij = ij.init()
+
+    #Find the directory the tiff stack file is located
+    abs_path  = os.path.abspath(fname)
+    head,tail = os.path.split(abs_path)
+    base,ext  = os.path.splitext(tail)
+    
+    #Make the new directory
+    new_dir   = head+'/'+('_'.join(base.split())).replace('#','')
+    if not os.path.isdir(new_dir):
+        os.mkdir(new_dir)
+    print("Processing {}".format(new_dir))
+
+    #Read all the frames
+    tiff_frames  = read_multipage(fname)
+    num_frames   = len(tiff_frames)
+    
+    #Write out the individual image files
+    #If using default frame rate of 1 fps or user defines particular frame rate:
+    if not extract_metadata:
+        f = open(new_dir+'/metadata.txt','w')
+        elapsed_time_ms = 0.0
+        for i in range(num_frames):
+            fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
+            imwrite(fout,tiff_frames[i])
+            
+            #Auto-adjust brightness/contrast/window/level with ImageJ
+            print("Autoadjusting {} with ImageJ".format('/img_000000%03d'%(i)+'__000.tif'))
+            macro = """
+            open("{filepath}");
+            run("Enhance Contrast", "saturated=0.35");
+            run("Apply LUT");
+            run("Save");
+            close();
+            """.format(filepath=fout)
+            ij.py.run_macro(macro)
+            
+            #Write elapsed times
+            f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
+            elapsed_time_ms += 1000*1.0/frame_rate
+        f.close()
+    
+    #If using elapsed times from MicroManager metadata file:
+    if extract_metadata:
+        original_metadata = open
+        for i in range(num_frames):
+            fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
+            imwrite(fout,tiff_frames[i])
+            
+            #Auto-adjust brightness/contrast/window/level with ImageJ
+            print("Autoadjusting {} with ImageJ".format('/img_000000%03d'%(i)+'__000.tif'))
+            macro = """
+            open("{filepath}");
+            run("Enhance Contrast", "saturated=0.35");
+            run("Apply LUT");
+            run("Save");
+            close();
+            """.format(filepath=fout)
+            ij.py.run_macro(macro)
+            
+            #Write elapsed times
+            #Open original metadata file and extract times
+            filename_head = re.findall('[^/]+$', fname) #Reconstruct filename head from fname, ex: if fname = '/date/slide/condition/pca4-5_1.repeat', filename_head = 'pca4-5_1.repeat'
+            filename_head_trim = re.findall('[^.]+', filename_head[0]) #Remove everything following the period (for my own convenience since our Micromanager adds a '*.ome' suffix to everything). Extremely inelegant use of Regex, will need to fix later.
+            original_metadata=open(head+'/'+filename_head_trim[0]+'_metadata.txt','r')
+            lines = original_metadata.readlines()
+            filtered_lines = filter(lambda x:x.find('"ElapsedTime-ms"') > 0,lines)
+            original_metadata.close()
+
+            #Write times to new "metadata.txt" file; *NOTE* I had to correct the times such that frame 1 is at 0 ms otherwise the program fails
+            uncorrected_times = []
+            corrected_times = []
+            for i in filtered_lines:
+                elapsed_times = re.findall('\d+.\d+', i)
+                uncorrected_times.append((float(elapsed_times[0])))
+            for i in uncorrected_times:
+                corrected_times.append(i-uncorrected_times[0])
+            f = open(new_dir+'/metadata.txt','w')
+            for i in corrected_times:
+                f.write('  "ElapsedTime-ms": {},\n'.format(i))
+            f.close()
 
 #Functions for statistical analysis
 def gaussian(X,amp,mu,stdev):
