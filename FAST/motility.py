@@ -14,7 +14,6 @@ import re
 
 import numpy as np
 import numpy
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as py
 import matplotlib.cm as cm
 import scipy.io
