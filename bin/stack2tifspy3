@@ -18,13 +18,13 @@ usage            = ['%(prog)s -d [DIRECTORY]',
                     'Ankit Garg',
                     '',
                     '',
-                    'This is a specific version created to explode image stacks, optimize the'
-                    'image with ImageJ, and extract elapsed times from MicroManager metadata,'
-                    'and write them in a way that is compatible with FAST. This program'
-                    'requires Python 3 to run the ImageJ module. You must switch to an'
-                    'environment that is running Python 3. Note that FAST will not run with'
-                    'Python 3, so you must switch back to Python 2.7 to complete your'
-                    'analysis.'
+                    'This is a specific version created to explode image stacks, optimize the',
+                    'image with ImageJ, and extract elapsed times from MicroManager metadata,',
+                    'and write them in a way that is compatible with FAST. This program',
+                    'requires Python 3 to run the ImageJ module. You must switch to an',
+                    'environment that is running Python 3. Note that FAST will not run with',
+                    'Python 3, so you must switch back to Python 2.7 to complete your',
+                    'analysis.',
                     '------------------------------------------------------------------------'
                     ]
 
