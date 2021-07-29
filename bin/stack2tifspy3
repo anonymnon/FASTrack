@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 import os
 import sys
+
+if sys.version_info[0] < 3:
+    sys.exit("Do not run this program under Python 2.")
+
 import argparse
 import warnings
 
