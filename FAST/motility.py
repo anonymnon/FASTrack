@@ -12,6 +12,7 @@ import re
 if sys.version_info[0] < 3:
     import matplotlib
     matplotlib.use('TkAgg')
+    import plotparams as plotparams
 
 import numpy as np
 import numpy
@@ -19,8 +20,6 @@ import matplotlib.pyplot as py
 import matplotlib.cm as cm
 import scipy.io
 import skimage.io as skio
-
-import plotparams as plotparams
 
 from numpy import ma
 from scipy.ndimage import label
