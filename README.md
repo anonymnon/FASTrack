@@ -47,6 +47,10 @@ On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in y
     
 `$rm -f ~/.cache/matplotlib/fontList.cache`
 
+This version of the program requires GNU-parallel. Please make sure it is installed.
+  
+`$sudo apt-get install parallel`
+
 After installation don't move the FAST directory to some other location.
 
 ## Preparation of movie files
