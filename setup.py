@@ -42,5 +42,5 @@ setuptools.setup(
                       'scipy==1.0.1',
                       'six==1.11.0',
                       'subprocess32==3.2.7'],
-    python_requires='>=2.7, !=3.*',
+    python_requires='>=2.7',
 )
