@@ -10,6 +10,9 @@ import getpass
 
 from FAST import motility
 
+if sys.version_info[0] >= 3:
+    sys.eixt("Do not run this program under Python 3.")
+
 #Utility functions
 def is_number(s):
     try:
