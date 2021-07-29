@@ -29,11 +29,11 @@ Remember to activate the virtualenvironment
 
 `$workon FAST`
 
-To install the FAST package, type and execcute
+To install the FAST package, type and execute inside the FAST directory
 
 `$(FAST) pip install FASTrack` 
 
-For most up to date version of the package, clone or download FAST github repository. Inside the `FAST` package folder, execute
+This particular version is only managed through github. Clone the repository through github or install github to your computer. The original/master version can be found at  [FASTrack](https://github.com/turalaksel/FASTrack/tree/master/FAST). 
 
 `$(FAST) pip install .` 
 
@@ -51,6 +51,27 @@ This version of the program requires GNU-parallel. Please make sure it is instal
   
 `$sudo apt-get install parallel`
 
+To run **stack2tifspy3**, you will need to create a Python3 virtual environment and install the ImageJ module.
+
+`$mkvirtualenv FAST3 -p python3$`
+
+Remember to activate the virtualenvironment if you are not on it already.
+
+`$workon FAST3`
+
+Go to your FAST directory and install the package
+
+`$(FAST) pip install FASTrack`
+
+Several packages are required for ImageJ. Whether in your virtual environment or outside your virtual environment, install the following:
+
+`$sudo apt-get install openjdk-11-jdk`
+`$sudo apt install maven`
+
+Inside your Python3 virtual environment:
+
+`pip install pyimagej`
+
 After installation don't move the FAST directory to some other location.
 
 ## Preparation of movie files
@@ -61,7 +82,7 @@ After installation don't move the FAST directory to some other location.
     stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND
      ```
 
-- (Update by Ankit 7/27/2021) The prior stack2tifs script did not universally handle files captured from Micromanager. The updated stack2tifspy3 takes a directory containing an image stack, explodes the stack into individual frames, autoenhances the images using ImageJ, and saves the new frame with names that are compatible with the original FAST program. If the directory contains a *_metadata.txt file where * = the exact same name as the image, the elapsed times will be extracted and written to a new metadata file that is compatible with the original FAST program. If no metadata file exists, the program will write a metadata file based on the frame rate provided by the "-f" argument. THIS SCRIPT MUST BE RUN UNDER A PYTHON 3 ENVIRONMENT since the ImageJ module requires Python 3. Recommend creating a Python 3 environment, running this script, then switching back to a Python 2.7 environment to continue the analysis.
+- (Update by Ankit 7/27/2021) The prior stack2tifs script did not universally handle files captured from Micromanager. The updated stack2tifspy3 takes a directory containing an image stack, explodes the stack into individual frames, autoenhances the images using ImageJ, and saves the new frame with names that are compatible with the original FAST program. If the directory contains a *_metadata.txt file where * = the exact same name as the image and the "-t" parameter is given any argument; the elapsed times will be extracted and written to a new metadata file that is compatible with the original FAST program. If no metadata file exists, do not use the "-t" argument and the program will write a metadata file based on the frame rate provided by the "-f" argument. THIS SCRIPT MUST BE RUN UNDER A PYTHON3 ENVIRONMENT since the ImageJ module requires Python 3. Recommend creating a Python3 environment, running this script, then switching back to a Python 2.7 environment to continue the analysis. FAST WILL NOT WORK UNDER PYTHON3.
    
      ```
     stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE
