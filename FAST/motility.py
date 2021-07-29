@@ -4,7 +4,7 @@
 #Tural Aksel
 
 import matplotlib
-matplotlib.use('TkAgg')
+# matplotlib.use('TkAgg')
 
 import os
 import sys
