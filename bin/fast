@@ -67,7 +67,7 @@ parser.print_help()
 
 #Get username
 user_name = getpass.getuser()
-print '-'*10+'Welcome %s'%(user_name)+'-'*10
+print('-'*10+'Welcome %s'%(user_name)+'-'*10)
 
 #Get the argument
 main_dir             = args_dict['d']
@@ -325,7 +325,7 @@ for top_root in sorted_top_roots:
         
         #If the picture quality is bad, return early
         if picture_quality == 'bad':
-            print 'Bad picture quality in %s'%(root)
+            print('Bad picture quality in %s'%(root))
             continue
         
         #Output filenames
@@ -339,7 +339,7 @@ for top_root in sorted_top_roots:
         input_file   = final_folder+'.in'
         script_file  = final_folder+'.py'
         
-        print 'Processing tif files in %s'%(root)
+        print('Processing tif files in %s'%(root))
         
         #Start the timer
         start_t      = time.time()
@@ -378,7 +378,7 @@ for top_root in sorted_top_roots:
                 new_motility.read_metadata()
                 
                 for no in frame_nos[1:]:
-                    print 'Making the links: Frame: %d'%(no)
+                    print('Making the links: Frame: %d'%(no))
                     new_motility.load_frame2(no)
                     new_motility.make_frame_links()
                     new_motility.frame1 = new_motility.frame2
@@ -423,7 +423,7 @@ for top_root in sorted_top_roots:
             all_data_counter += 1
             
         end_t = time.time()
-        print "Time spent: %.1f"%(end_t-start_t)
+        print("Time spent: %.1f"%(end_t-start_t))
     
     
     #Go back to main directory
@@ -434,7 +434,7 @@ for top_root in sorted_top_roots:
         continue
     
     #Prompt which files are combined
-    print "Combining data in %s"%(root_header)
+    print("Combining data in %s"%(root_header))
     
     #Process and write down the combined results 
     combined_full_len_vel = np.vstack(combined_full_len_vel)
