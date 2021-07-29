@@ -530,7 +530,7 @@ class Motility:
                 self.frame_links      = np.load(self.directory+'/links.npy')
             #If links.npy is the output of an old version of motility
             except ImportError:
-                print'Movie analysed previously with an old version of motility. Links will be regenerated.'
+                print('Movie analysed previously with an old version of motility. Links will be regenerated.')
                 return False
             return True
         else:
