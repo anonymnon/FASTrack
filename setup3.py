@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="FASTrack",# Replace with your own username
-    version="N/A",
+    version="1.0.2",
     author="Ankit Garg",
     author_email="anonymnon@gmail.com",
     description="Companion script for FASTrack and additional debuggin of original program",
