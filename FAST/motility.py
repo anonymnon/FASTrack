@@ -1163,7 +1163,7 @@ class Motility:
         '''
         #Read the frame
         
-        print 'Reading frame: %d'%(num_frame)
+        print('Reading frame: %d'%(num_frame))
         self.frame           = Frame()
         self.frame.directory = self.directory
         self.frame.header    = self.header
@@ -1323,7 +1323,7 @@ class Motility:
         
         if num_points_filtered < min_points:
             #There is no frame-link
-            print 'Warning: There is not enough velocity data! - %d points'%(num_points_t)
+            print('Warning: There is not enough velocity data! - %d points'%(num_points_t))
             return -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
         
         #Statistics data
