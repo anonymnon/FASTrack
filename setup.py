@@ -79,7 +79,6 @@ if sys.version_info[0] >= 3:
                         'opencv-python',
                         'pillow',
                         'pyparsing',
-                        'python-dateuti',
                         'pytz',
                         'PyWavelets',
                         'scikit-image',
