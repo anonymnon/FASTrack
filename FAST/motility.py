@@ -9,36 +9,38 @@ import time
 import math
 import re
 
+from imageio import imwrite
+
 if sys.version_info[0] < 3:
     import matplotlib
     matplotlib.use('TkAgg')
     import plotparams as plotparams
 
-import numpy as np
-import numpy
-import matplotlib.pyplot as py
-import matplotlib.cm as cm
-import scipy.io
-import skimage.io as skio
+    import numpy as np
+    import numpy
+    import matplotlib.pyplot as py
+    import matplotlib.cm as cm
+    import scipy.io
+    import skimage.io as skio
 
-from numpy import ma
-from scipy.ndimage import label
-from scipy.ndimage.morphology import binary_fill_holes,binary_closing,binary_opening
-from scipy import stats
+    from numpy import ma
+    from scipy.ndimage import label
+    from scipy.ndimage.morphology import binary_fill_holes,binary_closing,binary_opening
+    from scipy import stats
 
-from skimage import img_as_uint
-from skimage.filters import thresholding,rank,threshold_otsu,gaussian_filter
-from skimage.morphology import disk, square, rectangle, skeletonize, dilation
-from skimage.morphology.watershed import watershed
+    from skimage import img_as_uint
+    from skimage.filters import thresholding,rank,threshold_otsu,gaussian_filter
+    from skimage.morphology import disk, square, rectangle, skeletonize, dilation
+    from skimage.morphology.watershed import watershed
 
-from imageio import imwrite
 
-from scipy.optimize import leastsq
-from scipy.stats    import kde
 
-import cv2
+    from scipy.optimize import leastsq
+    from scipy.stats    import kde
 
-from importlib import import_module
+    import cv2
+
+    from importlib import import_module
 
 #Global variables/structures
 sqr_1   = square(1)    #Square with a radius of 1 pixel
