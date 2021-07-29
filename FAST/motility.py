@@ -13,8 +13,7 @@ import math
 import re
 
 import numpy as np
-import 
-matplotlib.use('TkAgg')
+import matplotlib.use('TkAgg')
 import matplotlib.pyplot as py
 import matplotlib.cm as cm
 import scipy.io
