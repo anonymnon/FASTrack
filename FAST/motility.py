@@ -5,13 +5,14 @@
 
 import os
 import sys
-import time
-import math
-import re
 
 from imageio import imwrite
+from importlib import import_module
 
 if sys.version_info[0] < 3:
+    import time
+    import math
+    import re
     import matplotlib
     matplotlib.use('TkAgg')
     import plotparams as plotparams
@@ -40,7 +41,6 @@ if sys.version_info[0] < 3:
 
     import cv2
 
-    from importlib import import_module
 
 #For Python 3 environment only
 if sys.version_info[0] >= 3:
