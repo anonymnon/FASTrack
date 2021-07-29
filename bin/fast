@@ -3,7 +3,7 @@ import os
 import sys
 
 if sys.version_info[0] >= 3:
-    sys.eixt("Do not run this program under Python 3.")
+    sys.exit("Do not run this program under Python 3.")
 
 import commands
 import time
