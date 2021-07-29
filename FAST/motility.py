@@ -9,41 +9,11 @@ import sys
 from imageio import imwrite
 from importlib import import_module
 
-if sys.version_info[0] < 3:
-    import time
-    import math
-    import re
-    import matplotlib
-    matplotlib.use('TkAgg')
-    import plotparams as plotparams
-
-    import numpy as np
-    import numpy
-    import matplotlib.pyplot as py
-    import matplotlib.cm as cm
-    import scipy.io
-    import skimage.io as skio
-
-    from numpy import ma
-    from scipy.ndimage import label
-    from scipy.ndimage.morphology import binary_fill_holes,binary_closing,binary_opening
-    from scipy import stats
-
-    from skimage import img_as_uint
-    from skimage.filters import thresholding,rank,threshold_otsu,gaussian_filter
-    from skimage.morphology import disk, square, rectangle, skeletonize, dilation
-    from skimage.morphology.watershed import watershed
-
-
-
-    from scipy.optimize import leastsq
-    from scipy.stats    import kde
-
-    import cv2
-
-
 #For Python 3 environment only
 if sys.version_info[0] >= 3:
+    from tifffile import imread as read_multipage
+
+    #Only function used by this script in Python 3
     def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
         '''
         MUST BE RUN UNDER PYTHON 3 ENVIRONMENT
@@ -136,6 +106,38 @@ if sys.version_info[0] >= 3:
                 f.close()
 
 #For Python 2 environment only
+if sys.version_info[0] < 3:
+    import time
+    import math
+    import re
+    import matplotlib
+    matplotlib.use('TkAgg')
+    import plotparams as plotparams
+
+    import numpy as np
+    import numpy
+    import matplotlib.pyplot as py
+    import matplotlib.cm as cm
+    import scipy.io
+    import skimage.io as skio
+
+    from numpy import ma
+    from scipy.ndimage import label
+    from scipy.ndimage.morphology import binary_fill_holes,binary_closing,binary_opening
+    from scipy import stats
+
+    from skimage import img_as_uint
+    from skimage.filters import thresholding,rank,threshold_otsu,gaussian_filter
+    from skimage.morphology import disk, square, rectangle, skeletonize, dilation
+    from skimage.morphology.watershed import watershed
+
+
+
+    from scipy.optimize import leastsq
+    from scipy.stats    import kde
+
+    import cv2
+
 if sys.version_info[0] < 3:
     #Global variables/structures
     sqr_1   = square(1)    #Square with a radius of 1 pixel
