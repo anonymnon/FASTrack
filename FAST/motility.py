@@ -417,7 +417,7 @@ if sys.version_info[0] < 3:
                 self.elapsed_times = []
                 for line in filtered_lines:
                     
-                    m = re.search('ElapsedTime-ms":\s+(\d+),', line)
+                    m = re.search('ElapsedTime-ms":\s+(\d.+),', line)
                     self.elapsed_times.append(float(m.group(1)))
                 
                 #Elapsed times in seconds
