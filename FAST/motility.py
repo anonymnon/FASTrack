@@ -5,6 +5,7 @@
 
 import os
 import sys
+import re
 
 from imageio import imwrite
 from importlib import import_module
@@ -109,7 +110,6 @@ if sys.version_info[0] >= 3:
 if sys.version_info[0] < 3:
     import time
     import math
-    import re
     import matplotlib
     matplotlib.use('TkAgg')
     import plotparams as plotparams
