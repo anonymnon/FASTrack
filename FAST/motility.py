@@ -13,7 +13,11 @@ from importlib import import_module
 #For Python 3 environment only
 if sys.version_info[0] >= 3:
     from tifffile import imread as read_multipage
-
+    
+    # Import latest version of ImageJ
+    ij = import_module('imagej')
+    ij = ij.init()
+    
     #Only function used by this script in Python 3
     def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
         '''
@@ -22,9 +26,6 @@ if sys.version_info[0] >= 3:
         Imports ImageJ on execution of this function to prevent loading
             java when running the main program
         '''
-        # Import latest version of ImageJ
-        ij = import_module('imagej')
-        ij = ij.init()
 
         #Find the directory the tiff stack file is located
         abs_path  = os.path.abspath(fname)
