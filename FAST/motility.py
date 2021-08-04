@@ -112,7 +112,7 @@ if sys.version_info[0] < 3:
     import time
     import math
     import matplotlib
-    matplotlib.use('TkAgg')
+    matplotlib.use('Agg')
     import plotparams as plotparams
 
     import numpy as np
