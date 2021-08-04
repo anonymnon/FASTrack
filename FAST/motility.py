@@ -9,6 +9,14 @@ import re
 
 from imageio import imwrite
 from importlib import import_module
+import matplotlib
+
+#Detect if running without display
+if os.environ.get('DISPLAY', '') == '':
+    print('no display found. Using non-interactive Agg backend')
+    matplotlib.use('Agg')
+else:
+    matplotlib.use('TkAgg')
 
 #For Python 3 environment only
 if sys.version_info[0] >= 3:
@@ -111,8 +119,6 @@ if sys.version_info[0] >= 3:
 if sys.version_info[0] < 3:
     import time
     import math
-    import matplotlib
-    matplotlib.use('Agg')
     import plotparams as plotparams
 
     import numpy as np
