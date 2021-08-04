@@ -4,11 +4,6 @@
 #Tural Aksel
 
 import os
-import sys
-import re
-
-from imageio import imwrite
-from importlib import import_module
 import matplotlib
 
 #Detect if running without display
@@ -17,6 +12,12 @@ if os.environ.get('DISPLAY', '') == '':
     matplotlib.use('Agg')
 else:
     matplotlib.use('TkAgg')
+
+import sys
+import re
+
+from imageio import imwrite
+from importlib import import_module
 
 #For Python 3 environment only
 if sys.version_info[0] >= 3:
