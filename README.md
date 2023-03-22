@@ -37,8 +37,10 @@ To manually activate the bash profile without closing the terminal, execute the 
 ### Installing ImageJ for use of stack2tifspy3
 Several packages are required for ImageJ. Whether in your virtual environment or outside your virtual environment, install the following:
 
-`$sudo apt-get install openjdk-11-jdk`
-`$sudo apt install maven`
+```
+$sudo apt-get install openjdk-11-jdk
+$sudo apt install maven
+```
 
 ### Misc
 I often ran into the following error during installation of FAST: `Failed building wheel for subprocess32`
@@ -71,6 +73,7 @@ On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in y
 
 Before you install this package, remove previous installations and make sure to delete any lines with `FAST` in `.bashrc`, '`.profile` or `.bash_profile` files in your home directory (`~`).  
 
+### Installing FAST to python 2.7 environment
 Installing this package inside python virtual environment is highly encouraged. After installing `virtualenv` and `virtualenvwrapper`, create a python2 virtual environnment.
 
 Create a virtual environment with python2.7.
@@ -91,6 +94,7 @@ This particular version is only managed through github. Clone the repository thr
 
 Everytime you need to use `FAST`, remember to activate `FAST` virtual environment typing `workon FAST` on terminal.
 
+### Installing FAST to python 3 environment to use stack2tifspy3
 To run **stack2tifspy3**, you will need to create a Python3 virtual environment and install the ImageJ module. Create a python3 virtual environment:
 
 `$mkvirtualenv FAST3 -p python3$`
@@ -105,7 +109,7 @@ Go to your FAST directory and install the package
 
 Inside your Python3 virtual environment:
 
-`pip install pyimagej`
+`(FAST3) pip install pyimagej`
 
 After installation don't move the FAST directory to some other location.
 
