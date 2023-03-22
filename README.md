@@ -41,23 +41,31 @@ Several packages are required for ImageJ. Whether in your virtual environment or
 `$sudo apt install maven`
 
 ### Misc
-I often ran into the following error during installation of FAST: 'Failed building wheel for subprocess32'
+I often ran into the following error during installation of FAST: `Failed building wheel for subprocess32`
 
 This was solved by installing multiple python basic packages:
-'''
+```
 sudo apt install python-dev
 sudo apt install libffi-dev
 sudo apt install build-essential
-'''
+```
 
-If you get the following error: 'ImportError: No module named _tkinter, please install the python-tk package', Do the following:
-'sudo apt install python-tk'
+If you get the following error: `ImportError: No module named _tkinter, please install the python-tk package`, Do the following:
+`sudo apt install python-tk`
 
 This version of the program requires GNU-parallel. Please make sure it is installed:
 `sudo apt-get install parallel`
 
 To generate movies of tracking, install avconv package:
 `sudo apt-get install ffmpeg`.
+
+To display fonts properly on Ubuntu, install MS fonts.
+  
+`$sudo apt-get install ttf-mscorefonts-installer`
+
+On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in your home directory.
+    
+`$rm -f ~/.cache/matplotlib/fontList.cache`
 
 ## Installation
 
@@ -73,7 +81,7 @@ Remember to activate the virtual environment
 
 `$workon FAST`
 
-To install the FAST package, type and execute inside the FAST directory
+To install the FAST package, clone this repository and extract into the directory of your choice. Within the directory, execute the following command:
 
 `$(FAST) pip install FASTrack` 
 
@@ -81,27 +89,19 @@ This particular version is only managed through github. Clone the repository thr
 
 `$(FAST) pip install .` 
 
-Everytime you need to use `FAST`, remeber to activate `FAST` virtual environment typing `workon FAST` on terminal.
+Everytime you need to use `FAST`, remember to activate `FAST` virtual environment typing `workon FAST` on terminal.
 
-To display fonts properly om Ubuntu, install MS fonts.
-  
-`$sudo apt-get install ttf-mscorefonts-installer`
-
-On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in your home directory.
-    
-`$rm -f ~/.cache/matplotlib/fontList.cache`
-
-To run **stack2tifspy3**, you will need to create a Python3 virtual environment and install the ImageJ module.
+To run **stack2tifspy3**, you will need to create a Python3 virtual environment and install the ImageJ module. Create a python3 virtual environment:
 
 `$mkvirtualenv FAST3 -p python3$`
 
-Remember to activate the virtualenvironment if you are not on it already.
+Remember to activate the virtual environment if you are not on it already.
 
 `$workon FAST3`
 
 Go to your FAST directory and install the package
 
-`$(FAST) pip install FASTrack`
+`$(FAST3) pip install .`
 
 Inside your Python3 virtual environment:
 
