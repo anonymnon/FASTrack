@@ -11,15 +11,53 @@ Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 20
 ## Foreword
 This version of FASTrack is a minor update to Tural Aksel's original program to fix some issues I was having in my Ubuntu 20.04 OS in addition to adding a new **stack2tifs** script called **stack2tifspy3** that allows for a bit more automated processing of images that were captured by Micro-manager open source microscope software. There was no alteration to the underlying calculations that were done by the original software. Furthermore, the original software is fully operational after some minor debugging (which may include editing some of the source code). Thus, you should cite the original paper by Tural Aksel if you use this repository.
 
-If you do not have experience with Linux or Python, this software may be difficult to use. Though the hope is that anybody can run this software under any Linux machine, it will very likely not work as-is without some effort on the user's end to try to troubleshoot the software. As of 7/30/21, Tural Aksel does not seem to be answering any further questions on his original FASTrack software. You are welcome to contact me with any bugs at anonymnon@gmail.com but realize that I am not a programmer nor am I planning to actively maintain this repository.
+If you do not have experience with Linux or Python, this software may be difficult to use. Though the hope is that anybody can run this software under any Linux machine, it will very likely not work as-is without some effort on the user's end to try to troubleshoot the software. As of 7/30/21, Tural Aksel does not seem to be answering any further questions on his original FASTrack software. You are welcome to contact me with any bugs at anonymnon@gmail.com but realize that I am not a programmer nor am I planning to actively maintain this repository. Also, all the instructions provided below are for Linux. I found MacOS to be too cumbersome.
 
 ## Dependencies
 
-To generate movies of tracking, install avconv package. 
+There are several packages that either do not seem to install properly or are not a part of the original installation. Installing the following packages helped me to avoid errors, but you will likely need to troubleshoot your own environment. For those unfamiliar with Linux, please realize that any `sudo` command will result in running in executing something as a super user. USE AT YOUR OWN RISK. It is very possible to break your Linux installation.
 
-On Mac OS, install using brew: `brew install libav`. On Ubuntu, `sudo apt-get install ffmpeg`.
+### Installing virtualenv and virtualenvwrapper
 
-O
+Install virtualenv by running `sudo apt install virtualenv`
+
+Install virtualenvwrapper by running `sudo apt install virtualenvwrapper`
+
+
+**NOTE** I often get an error when trying to call virtualenvwrapper because it does not seem to get added to my PATH by default. If you want to be able to call virtualenvwrapper by typing 'mkvirtualenv', find where virtualenvwrapper was installed (for me it was `/usr/share/virtualenvwrapper/virtualenvwrapper.sh`), and add the following to your `~/.bash_profile`:
+
+```
+#Executing source command to allow mkvirtualenv command
+source "/usr/share/virtualenvwrapper/virtualenvwrapper.sh"
+```
+
+To manually activate the bash profile without closing the terminal, execute the following command:
+`source ~/.bash_profile`
+
+### Installing ImageJ for use of stack2tifspy3
+Several packages are required for ImageJ. Whether in your virtual environment or outside your virtual environment, install the following:
+
+`$sudo apt-get install openjdk-11-jdk`
+`$sudo apt install maven`
+
+### Misc
+I often ran into the following error during installation of FAST: 'Failed building wheel for subprocess32'
+
+This was solved by installing multiple python basic packages:
+'''
+sudo apt install python-dev
+sudo apt install libffi-dev
+sudo apt install build-essential
+'''
+
+If you get the following error: 'ImportError: No module named _tkinter, please install the python-tk package', Do the following:
+'sudo apt install python-tk'
+
+This version of the program requires GNU-parallel. Please make sure it is installed:
+`sudo apt-get install parallel`
+
+To generate movies of tracking, install avconv package:
+`sudo apt-get install ffmpeg`.
 
 ## Installation
 
@@ -31,7 +69,7 @@ Create a virtual environment with python2.7.
 
 `$mkvirtualenv FAST -p python2.7$`
 
-Remember to activate the virtualenvironment
+Remember to activate the virtual environment
 
 `$workon FAST`
 
@@ -53,10 +91,6 @@ On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in y
     
 `$rm -f ~/.cache/matplotlib/fontList.cache`
 
-This version of the program requires GNU-parallel. Please make sure it is installed.
-  
-`$sudo apt-get install parallel`
-
 To run **stack2tifspy3**, you will need to create a Python3 virtual environment and install the ImageJ module.
 
 `$mkvirtualenv FAST3 -p python3$`
@@ -68,11 +102,6 @@ Remember to activate the virtualenvironment if you are not on it already.
 Go to your FAST directory and install the package
 
 `$(FAST) pip install FASTrack`
-
-Several packages are required for ImageJ. Whether in your virtual environment or outside your virtual environment, install the following:
-
-`$sudo apt-get install openjdk-11-jdk`
-`$sudo apt install maven`
 
 Inside your Python3 virtual environment:
 
