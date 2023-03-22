@@ -109,7 +109,7 @@ Go to your FAST directory and install the package
 
 Inside your Python3 virtual environment:
 
-`(FAST3) pip install pyimagej`
+`$(FAST3) pip install pyimagej`
 
 After installation don't move the FAST directory to some other location.
 
