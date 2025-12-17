@@ -50,7 +50,7 @@ if sys.version_info[0] < 3:
 if sys.version_info[0] >= 3:
     setuptools.setup(
         name="FASTrack",
-        version="N/A",
+        version="1.0.1a1",
         author="Ankit Garg",
         author_email="anonymnon@gmail.com",
         description="Companion stack2tifspy3 script for automated image processing",
