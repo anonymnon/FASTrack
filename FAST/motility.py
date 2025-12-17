@@ -2,10 +2,11 @@
 
 #Invitro-motility (Actin sliding via myosins) analysis python module
 #Tural Aksel
-
-from pathlib import Path
+import sys
 import os
 import matplotlib
+if sys.version_info[0] > 2:
+    from pathlib import Path
 
 #Detect if running without display
 if os.environ.get('DISPLAY', '') == '':
@@ -137,7 +138,7 @@ if sys.version_info[0] < 3:
     from scipy import stats
 
     from skimage import img_as_uint
-    from skimage.filters import thresholding,rank,threshold_otsu,gaussian_filter
+    from skimage.filters import rank, threshold_otsu, gaussian
     from skimage.morphology import disk, square, rectangle, skeletonize, dilation
     from skimage.morphology.watershed import watershed
 
@@ -1885,7 +1886,7 @@ if sys.version_info[0] < 3:
             '''
             Low pass filter to remove high-frequency noise
             '''
-            self.img = gaussian_filter(self.img,sigma=sigma)
+            self.img = gaussian(self.img,sigma=sigma)
             
         def entropy_clusters(self):
             '''
