@@ -3,6 +3,7 @@
 #Invitro-motility (Actin sliding via myosins) analysis python module
 #Tural Aksel
 
+from pathlib import Path
 import os
 import matplotlib
 
@@ -42,7 +43,7 @@ if sys.version_info[0] >= 3:
         base,ext  = os.path.splitext(tail)
         
         #Make the new directory
-        new_dir   = head+'/'+('_'.join(base.split())).replace('#','')
+        new_dir   = head+os.sep+('_'.join(base.split())).replace('#','')
         if not os.path.isdir(new_dir):
             os.mkdir(new_dir)
         print("Processing {}".format(new_dir))
@@ -54,21 +55,21 @@ if sys.version_info[0] >= 3:
         #Write out the individual image files
         #If using default frame rate of 1 fps or user defines particular frame rate:
         if not extract_metadata:
-            f = open(new_dir+'/metadata.txt','w')
+            f = open(new_dir+os.sep+'metadata.txt','w')
             elapsed_time_ms = 0.0
             for i in range(num_frames):
-                fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
+                fout = Path(new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif')
                 imwrite(fout,tiff_frames[i])
                 
                 #Auto-adjust brightness/contrast/window/level with ImageJ
-                print("Autoadjusting {} with ImageJ".format('/img_000000%03d'%(i)+'__000.tif'))
+                print("Autoadjusting {}with ImageJ".format(fout))
                 macro = """
                 open("{filepath}");
                 run("Enhance Contrast", "saturated=0.35");
                 run("Apply LUT");
                 run("Save");
                 close();
-                """.format(filepath=fout)
+                """.format(filepath=fout.as_posix())
                 ij.py.run_macro(macro)
                 
                 #Write elapsed times
@@ -80,18 +81,19 @@ if sys.version_info[0] >= 3:
         if extract_metadata:
             original_metadata = open
             for i in range(num_frames):
-                fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
+                fout = Path(new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif')
                 imwrite(fout,tiff_frames[i])
+                print(fout.as_posix())
                 
                 #Auto-adjust brightness/contrast/window/level with ImageJ
-                print("Autoadjusting {} with ImageJ".format('/img_000000%03d'%(i)+'__000.tif'))
+                print("Autoadjusting {} with ImageJ".format(fout))
                 macro = """
                 open("{filepath}");
                 run("Enhance Contrast", "saturated=0.35");
                 run("Apply LUT");
                 run("Save");
                 close();
-                """.format(filepath=fout)
+                """.format(filepath=fout.as_posix())
                 ij.py.run_macro(macro)
                 
                 #Write elapsed times
