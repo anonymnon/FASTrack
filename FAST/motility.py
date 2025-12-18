@@ -84,7 +84,6 @@ if sys.version_info[0] >= 3:
             for i in range(num_frames):
                 fout = Path(new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif')
                 imwrite(fout,tiff_frames[i])
-                print(fout.as_posix())
                 
                 #Auto-adjust brightness/contrast/window/level with ImageJ
                 print("Autoadjusting {} with ImageJ".format(fout))
