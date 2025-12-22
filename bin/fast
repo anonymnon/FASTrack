@@ -60,7 +60,7 @@ parser.add_argument('-oscore'   ,default = 0.4, type=float, help='overlap score 
 parser.add_argument('-lascore'  ,default = 1.0, type=float, help='log-area score cutoff value to make the connections between filaments - advanced option (Default:1.0)')
 parser.add_argument('-dlascore' ,default = 0.5, type=float, help='difference-log-area score cutoff value to make the connections between filaments - advanced option (Default:0.5)')
 
-parser.add_argument('-v'    ,action  = 'store_true'  ,default=False,  help='verbose output for debugging')
+parser.add_argument('-v'    ,action  = 'store_true'  ,default=False,  help='verbose output from GNU parallel for debugging')
 
 args = parser.parse_args()
 args_dict = vars(args)
@@ -85,6 +85,7 @@ fit_function         = args_dict['fx']
 pixel_size           = args_dict['px']
 max_velocity         = args_dict['maxd']
 min_velocity         = args_dict['minv']
+verbose              = args_dict['v'] #2025-12-22 added since it appeared to not in use
 
 #Hard-coded parameters
 overlap_score_cutoff        = args_dict['oscore']
@@ -350,6 +351,9 @@ for top_root in sorted_top_roots:
             
         #Parallel-execution of filament extraction of all the frames
         out          = commands.getstatusoutput("parallel -a "+input_file+" python "+script_file)
+        if verbose:
+            for i in out:
+                print(i)
         
         #Go through all the saved npy files - make the frame links
         f         = open(input_file,'r')
