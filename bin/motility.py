@@ -69,6 +69,7 @@ if sys.version_info[0] >= 3:
                 run("Enhance Contrast...", "saturated=0.05 normalize process_all");
                 setAutoThreshold("Yen dark no-reset");
                 run("Convert to Mask", "method=Yen background=Dark calculate black");
+                run("Median...", "radius=3 stack");
                 run("Save");
                 close();
                 """.format(filepath=fout.as_posix())
@@ -93,6 +94,7 @@ if sys.version_info[0] >= 3:
                 run("Enhance Contrast...", "saturated=0.05 normalize process_all");
                 setAutoThreshold("Yen dark no-reset");
                 run("Convert to Mask", "method=Yen background=Dark calculate black");
+                run("Median...", "radius=3 stack");
                 run("Save");
                 close();
                 """.format(filepath=fout.as_posix())
