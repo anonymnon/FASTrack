@@ -66,8 +66,9 @@ if sys.version_info[0] >= 3:
                 print("Autoadjusting {}with ImageJ".format(fout))
                 macro = """
                 open("{filepath}");
-                run("Enhance Contrast", "saturated=0.35");
-                run("Apply LUT");
+                run("Enhance Contrast...", "saturated=0.05 normalize process_all");
+                setAutoThreshold("Yen dark no-reset");
+                run("Convert to Mask", "method=Yen background=Dark calculate black");
                 run("Save");
                 close();
                 """.format(filepath=fout.as_posix())
@@ -89,8 +90,9 @@ if sys.version_info[0] >= 3:
                 print("Autoadjusting {} with ImageJ".format(fout))
                 macro = """
                 open("{filepath}");
-                run("Enhance Contrast", "saturated=0.35");
-                run("Apply LUT");
+                run("Enhance Contrast...", "saturated=0.05 normalize process_all");
+                setAutoThreshold("Yen dark no-reset");
+                run("Convert to Mask", "method=Yen background=Dark calculate black");
                 run("Save");
                 close();
                 """.format(filepath=fout.as_posix())
