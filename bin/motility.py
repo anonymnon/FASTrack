@@ -1866,7 +1866,17 @@ if sys.version_info[0] < 3:
             '''
             
             #Determine the 95-percentile intensity within a radius of 15 pixels
-            img_1 = rank.percentile(self.img,self.disk_win,p0=0.95)
+            try: #2025-12-22 Added to capture floating point precision noise
+                img_1 = rank.percentile(self.img,self.disk_win,p0=0.95)
+            except ValueError:
+                if self.img.max() >= 2:
+                    raise ValueError("Images of type float must be between -1 and 1. Current max value: {!r} and current min value: {!r}.".format(self.img.max(), self.imag.min()))
+                elif self.img.min() < -1:
+                    raise ValueError("Images of type float must be between -1 and 1. Current max value: {!r} and current min value: {!r}. Consider numpy.clip if appropriate (see source code).".format(self.img.max(), self.imag.min()))
+                elif self.img.max() > 1:
+                    print("Floating-point precision noise, current max pixel value is {!r}. Clipping to 1.0".format(self.img.max()))
+                    self.img = np.clip(self.img, None, 1.0)
+                    img_1 = rank.percentile(self.img,self.disk_win,p0=0.95)
             
             #Determine the 5-percentile intensity within a radius of 15 pixels
             img_0 = rank.percentile(self.img,self.disk_win,p0=0.05)
@@ -1895,7 +1905,17 @@ if sys.version_info[0] < 3:
             '''
             
             #Determine the 95-percentile intensity within a radius of 15 pixels
-            img_1 = rank.percentile(self.img,self.disk_win,p0=0.95)
+            try: #2025-12-22 Added to capture floating point precision noise
+                img_1 = rank.percentile(self.img,self.disk_win,p0=0.95)
+            except ValueError:
+                if self.img.max() >= 2:
+                    raise ValueError("Images of type float must be between -1 and 1. Current max value: {!r} and current min value: {!r}.".format(self.img.max(), self.imag.min()))
+                elif self.img.min() < -1:
+                    raise ValueError("Images of type float must be between -1 and 1. Current max value: {!r} and current min value: {!r}. Consider numpy.clip if appropriate (see source code).".format(self.img.max(), self.imag.min()))
+                elif self.img.max() > 1:
+                    print("Floating-point precision noise, current max pixel value is {!r}. Clipping to 1.0".format(self.img.max()))
+                    self.img = np.clip(self.img, None, 1.0)
+                    img_1 = rank.percentile(self.img,self.disk_win,p0=0.95)
             
             #Determine the 5-percentile intensity within a radius of 15 pixels
             img_0 = rank.percentile(self.img,self.disk_win,p0=0.05)
