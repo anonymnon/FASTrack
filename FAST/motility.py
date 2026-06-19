@@ -2029,8 +2029,8 @@ class Island:
         self.xy_norm[1] = self.xy[1]-self.y_min
         
         #Get the reduced image
-        self.img_reduced               = np.zeros((self.x_dim+1,self.y_dim+1))
-        self.img_reduced[self.xy_norm] = img[self.xy]
+        self.img_reduced                       = np.zeros((self.x_dim+1,self.y_dim+1))
+        self.img_reduced[tuple(self.xy_norm)]  = img[tuple(self.xy)]
     
     def decompose_to_filaments(self):
         '''
@@ -2188,8 +2188,8 @@ class Filament:
         self.xy_norm[1] = self.xy[1]-self.y_min+self.edge
         
         #Get the reduced image
-        self.img_reduced               = np.zeros((self.x_dim+1+2*self.edge,self.y_dim+1+2*self.edge),dtype=np.uint16)
-        self.img_reduced[self.xy_norm] = True
+        self.img_reduced                       = np.zeros((self.x_dim+1+2*self.edge,self.y_dim+1+2*self.edge),dtype=np.uint16)
+        self.img_reduced[tuple(self.xy_norm)]  = True
     
     def find_tips(self):
         '''
