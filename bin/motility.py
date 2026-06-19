@@ -542,7 +542,7 @@ class Motility:
         '''
         if not self.force_analysis and os.path.exists(self.directory+'/links.npy'):
             try:
-                self.frame_links      = np.load(self.directory+'/links.npy')
+                self.frame_links      = np.load(self.directory+'/links.npy',allow_pickle=True)
             #If links.npy is the output of an old version of motility
             except ImportError:
                 print('Movie analysed previously with an old version of motility. Links will be regenerated.')
@@ -1256,13 +1256,13 @@ class Motility:
         '''
         Save the results in working directory
         '''
-        np.save(self.directory+'/links.npy' ,self.frame_links)
-    
+        np.save(self.directory+'/links.npy' ,np.array(self.frame_links,dtype=object))
+
     def load_links(self):
         '''
         Load the results that have been saved earlier
         '''
-        self.frame_links = np.load(self.directory+'/links.npy')
+        self.frame_links = np.load(self.directory+'/links.npy',allow_pickle=True)
     
     def plot_length_velocity(self,header='',extra_fname=None,max_vel=2400, max_length= 10000,nbins=30, min_points=2, min_path_length = 5, weighted=True, percent_tolerance=500, print_plot=True, minimal_plot=False, maxvel_color='b', plot_xlabels = True, plot_ylabels = True, square_plot = True, plot_length_f=False, fit_f = 'exp',dpi_plot=200):
         '''
@@ -1843,14 +1843,14 @@ class Frame:
         #Save the filament-contours as npy file
         
         filament_file = self.directory+'/filXYs%03d'%self.frame_no
-        np.save(filament_file,self.filXYs)
-        
+        np.save(filament_file,np.array(self.filXYs,dtype=object))
+
     def read_filXYs(self):
         '''
         Load the filXYs for filament reconstruction
         '''
         filament_file = self.directory+'/filXYs%03d.npy'%self.frame_no
-        self.filXYs   = np.load(filament_file)
+        self.filXYs   = np.load(filament_file,allow_pickle=True)
         
     def check_picture_quality(self):
         '''
