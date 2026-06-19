@@ -4,6 +4,7 @@
 #Tural Aksel
 import sys
 import os
+import shutil
 import matplotlib
 
 #Detect if running without display
@@ -1171,7 +1172,73 @@ class Motility:
         #Delete all skeleton file
         os.system('rm -f skeletons_*.png')
         os.chdir(cwd)
-    
+
+    def make_overlay_movie(self,frame_nos,alpha=0.5,fps=5,extra_fname=None):
+        '''
+        Make a movie of the raw tif frames overlaid on top of the paths_2D.png
+        background at the given opacity, encoded as an H.264 mp4 so it plays
+        natively on Windows, macOS, and Linux.
+        '''
+
+        #Check if paths_2D.png figure exists - if not do not make the movie
+        paths_fname = self.directory+'/paths_2D.png'
+        if not os.path.isfile(paths_fname):
+            return
+
+        #ffmpeg is required to encode the frame sequence into a movie
+        if shutil.which('ffmpeg') is None:
+            print('Warning: ffmpeg not found on PATH - skipping overlay movie generation')
+            return
+
+        background = cv2.imread(paths_fname)
+        if background is None:
+            return
+
+        bg_height,bg_width = background.shape[:2]
+
+        #Temporary directory to hold the blended frames before encoding
+        tmp_dir = self.directory+'/overlay_tmp'
+        if os.path.isdir(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        os.makedirs(tmp_dir)
+
+        frame_count = 0
+        for frame_no in frame_nos:
+            fname = self.directory+'/'+self.header+'%03d'%frame_no+'_'+self.tail+'_000.tif'
+            if not os.path.isfile(fname):
+                continue
+
+            raw = cv2.imread(fname,cv2.IMREAD_UNCHANGED)
+            if raw is None:
+                continue
+
+            #Normalize to 8-bit grayscale and convert to color so it can be blended with the background
+            raw_8bit = cv2.normalize(raw,None,0,255,cv2.NORM_MINMAX).astype(np.uint8)
+            raw_bgr  = cv2.cvtColor(raw_8bit,cv2.COLOR_GRAY2BGR)
+
+            if raw_bgr.shape[:2] != (bg_height,bg_width):
+                raw_bgr = cv2.resize(raw_bgr,(bg_width,bg_height))
+
+            #Overlay the raw frame on top of the background at the given opacity
+            blended = cv2.addWeighted(background,1.0-alpha,raw_bgr,alpha,0)
+            cv2.imwrite(tmp_dir+'/frame_%04d.png'%frame_count,blended)
+            frame_count += 1
+
+        if frame_count == 0:
+            shutil.rmtree(tmp_dir)
+            return
+
+        #Encode the blended frame sequence into a widely-compatible H.264 mp4
+        out_movie      = self.directory+'/overlay_movie.mp4'
+        ffmpeg_command = 'ffmpeg -y -framerate %d -i %s/frame_%%04d.png -c:v libx264 -pix_fmt yuv420p %s'%(fps,tmp_dir,out_movie)
+        os.system(ffmpeg_command)
+
+        #Copy the movie to the output directory
+        if not extra_fname == None:
+            os.system('cp '+out_movie+' '+extra_fname+'overlay_movie.mp4')
+
+        shutil.rmtree(tmp_dir)
+
     def read_frame(self,num_frame,force_read = False):
         '''
         Read single frame

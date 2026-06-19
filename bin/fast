@@ -56,6 +56,8 @@ def main():
     parser.add_argument('-f'    ,action  = 'store_true'  ,default=False, help='force analyze all the movies')
     parser.add_argument('-r'    ,action  = 'store_true'  ,default=False, help='recalculate instantaneous velocities from saved filament files')
     parser.add_argument('-m'    ,action  = 'store_true'  ,default=False, help='make filament tracking movie')
+    parser.add_argument('-om'   ,action  = 'store_true'  ,default=False, help='make movie of raw frames overlaid on the paths_2D.png background')
+    parser.add_argument('-ofps' ,default = 5,        type=int,   help='frame rate for the overlay movie (Default:5)')
 
     parser.add_argument('-p'    ,default = 5,       type=int,   help='minimum length for the paths to be analyzed (Default:5)')
     parser.add_argument('-n'    ,default = 5,       type=int,   help='number of consecutive frames for averaging (Default:5)')
@@ -89,6 +91,8 @@ def main():
     recalculate          = args_dict['r']
     num_frames_ave       = args_dict['n']
     make_movie           = args_dict['m']
+    make_overlay_movie   = args_dict['om']
+    overlay_movie_fps    = args_dict['ofps']
     min_path_length      = args_dict['p']
     percent_tolerance    = args_dict['pt']
     plot_ymax            = args_dict['ymax']
@@ -366,6 +370,8 @@ def main():
                 new_motility.max_velocity   = 1.0*max_velocity/pixel_size
                 new_motility.num_frames     = len(frame_nos)
                 new_motility.directory      = final_folder
+                new_motility.header         = 'img_000000'
+                new_motility.tail           = tail_tif
                 new_motility.force_analysis = force_analysis
                 new_motility.width          = frame_width
                 new_motility.height         = frame_height
@@ -396,10 +402,14 @@ def main():
                 #Plot created paths
                 new_motility.plot_2D_path_data(num_frames_ave, extra_fname=out_path_fname)
             
+                if make_overlay_movie:
+                    #Make a movie of the raw frames overlaid on the paths_2D.png background
+                    new_motility.make_overlay_movie(frame_nos,fps=overlay_movie_fps,extra_fname=out_vl_txt_fname)
+
                 if make_movie:
                     #Reconstruct skeleton images from frame links
                     new_motility.reconstruct_skeleton_images()
-                
+
                     #Make the movie
                     new_motility.make_movie(extra_fname=out_vl_txt_fname)
             
