@@ -2206,7 +2206,7 @@ class Filament:
     
     def make_skeleton(self):
         #Skeletonize the image
-        self.img_skeleton = skeletonize(self.img_reduced)
+        self.img_skeleton = skeletonize(self.img_reduced).astype(np.uint8)
         
         #Find the tips
         self.find_tips()
