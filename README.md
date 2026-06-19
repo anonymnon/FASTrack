@@ -1,4 +1,6 @@
-# FAST v1.0.1a1: Fast Automated Spud Tracker
+# FAST v2.0.0-alpha.1: Fast Automated Spud Tracker
+
+README A WORK IN PROGRESS
 
 Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 2015. Ensemble force changes that result from human cardiac myosin mutations and a small molecule effector.**][1]
 
@@ -9,7 +11,7 @@ Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 20
 &copy; 2020 Tural Aksel
 
 ## Foreword
-This version of FASTrack is a minor update to Tural Aksel's original program to fix some issues I was having in my Ubuntu 20.04 OS in addition to adding a new **stack2tifs** script called **stack2tifspy3** that allows for a bit more automated processing of images that were captured by Micro-manager open source microscope software. There was no alteration to the underlying calculations that were done by the original software. Furthermore, the original software is fully operational after some minor debugging (which may include editing some of the source code). Thus, you should cite the original paper by Tural Aksel if you use this repository.
+This is a massive update for the previous program built by Tural Aksel to update it to work with modern Python 3. This updating was done by Claude Code AI. This builds on a previous version I had made which added a **stack2tifs** script called **stack2tifspy3** that allows for a bit more automated processing of images that were captured by Micro-manager open source microscope software. There was no alteration to the underlying calculations that were done by the original software. Furthermore, the original software is fully operational after some minor debugging (which may include editing some of the source code). Thus, you should cite the original paper by Tural Aksel if you use this repository.
 
 If you do not have experience with Linux or Python, this software may be difficult to use. Though the hope is that anybody can run this software under any Linux machine, it will very likely not work as-is without some effort on the user's end to try to troubleshoot the software. As of 7/30/21, Tural Aksel does not seem to be answering any further questions on his original FASTrack software. You are welcome to contact me with any bugs at anonymnon@gmail.com but realize that I am not a programmer nor am I planning to actively maintain this repository. Also, all the instructions provided below are for Linux. I found MacOS to be too cumbersome.
 
