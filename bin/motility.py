@@ -5,6 +5,7 @@
 import sys
 import os
 import shutil
+import shlex
 import matplotlib
 
 #Detect if running without display
@@ -1230,12 +1231,12 @@ class Motility:
 
         #Encode the blended frame sequence into a widely-compatible H.264 mp4
         out_movie      = self.directory+'/overlay_movie.mp4'
-        ffmpeg_command = 'ffmpeg -y -framerate %d -i %s/frame_%%04d.png -c:v libx264 -pix_fmt yuv420p %s'%(fps,tmp_dir,out_movie)
+        ffmpeg_command = 'ffmpeg -y -framerate %d -i %s -c:v libx264 -pix_fmt yuv420p %s'%(fps,shlex.quote(tmp_dir+'/frame_%04d.png'),shlex.quote(out_movie))
         os.system(ffmpeg_command)
 
         #Copy the movie to the output directory
         if not extra_fname == None:
-            os.system('cp '+out_movie+' '+extra_fname+'overlay_movie.mp4')
+            os.system('cp '+shlex.quote(out_movie)+' '+shlex.quote(extra_fname+'overlay_movie.mp4'))
 
         shutil.rmtree(tmp_dir)
 
