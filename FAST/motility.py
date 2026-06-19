@@ -8,7 +8,6 @@ import matplotlib
 
 #Detect if running without display
 if os.environ.get('DISPLAY', '') == '':
-    print('no display found. Using non-interactive Agg backend')
     matplotlib.use('Agg')
 else:
     matplotlib.use('TkAgg')
@@ -136,18 +135,19 @@ from scipy import stats
 
 from skimage import img_as_uint
 from skimage.filters import rank, threshold_otsu
-from skimage.morphology import disk, square, rectangle, skeletonize, dilation
+from skimage.morphology import disk, footprint_rectangle, rectangle, skeletonize, dilation
 from skimage.segmentation import watershed
 
 from scipy.optimize import leastsq
 from scipy.stats    import kde
 
 import cv2
+cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)    #Suppress noisy TIFF metadata warnings (e.g. unrecognized MicroManager tags)
 
 #Global variables/structures
-sqr_1   = square(1)    #Square with a radius of 1 pixel
-sqr_2   = square(2)    #Square with a radius of 2 pixels
-sqr_3   = square(3)    #Square with a radius of 3 pixels
+sqr_1   = footprint_rectangle((1,1))    #Square with a radius of 1 pixel
+sqr_2   = footprint_rectangle((2,2))    #Square with a radius of 2 pixels
+sqr_3   = footprint_rectangle((3,3))    #Square with a radius of 3 pixels
 disk_1  = disk(1)      #Disk   with a radius of 1 pixel
 disk_2  = disk(2)      #Disk   with a radius of 2 pixels
 disk_3  = disk(3)      #Disk   with a radius of 3 pixels
