@@ -2360,7 +2360,7 @@ class Filament:
         self.cm           = np.mean(1.0*self.contour,axis=0)
         
         #Filament midpoint
-        self.midpoint     = self.contour[len(self.contour)/2-1]
+        self.midpoint     = self.contour[len(self.contour)//2-1]
         
         #Determine filament area
         self.fil_area   = np.sum(self.img_reduced)
@@ -2385,7 +2385,7 @@ class Filament:
         self.cm           = np.mean(self.contour,axis=0)
         
         #Filament midpoint
-        self.midpoint     = self.contour[len(self.contour)/2-1]
+        self.midpoint     = self.contour[len(self.contour)//2-1]
         
         #Prepare coarse representation
         self.N_point()
