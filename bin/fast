@@ -1,11 +1,7 @@
-#!C:\Users\Ankit Garg\.conda\envs\FAST\python.exe
+#!/usr/bin/env python3
 import os
 import sys
-
-if sys.version_info[0] >= 3:
-    sys.exit("Do not run this program under Python 3.")
-
-import commands
+import subprocess
 import time
 import numpy as np
 import argparse
@@ -127,7 +123,7 @@ for root, subFolders, files in os.walk(main_dir):
     if len(subFolders) == 0:
         #Prepare the python script to read frames
         
-        tif_files    = filter(lambda x:x[-4:] == '.tif',files)
+        tif_files    = list(filter(lambda x:x[-4:] == '.tif',files))
         if len(tif_files) == 0:
             continue
         
@@ -143,7 +139,7 @@ for root, subFolders, files in os.walk(main_dir):
         root = head+'/'+tail_dir
         script_file  = root+'.py'
         f            = open(script_file,'w') 
-        lines      = ["#!/usr/bin/env python",
+        lines      = ["#!/usr/bin/env python3",
                       "import os",
                       "from FAST import motility",
                       "import sys",
@@ -160,7 +156,7 @@ for root, subFolders, files in os.walk(main_dir):
         #Prepare the input file for GNU Parallel
         input_file = root+'.in'
         f          = open(input_file,'w')
-        files      = filter(lambda x:os.path.splitext(x)[1] == '.tif',os.listdir(root))
+        files      = list(filter(lambda x:os.path.splitext(x)[1] == '.tif',os.listdir(root)))
 
         #Write the frame numbers
         frame_nos  = sorted([int(os.path.basename(x).split('_')[1]) for x in files])
@@ -212,11 +208,11 @@ for root, subFolders, files in os.walk(main_dir):
     top_directory      = split_path_entries[0]
     
     #Check for either *.tif or *.npy files for folders to be processed 
-    if len(subFolders) == 0 and (len(filter(lambda x:x[-4:] == '.tif',files)) > 0 or len(filter(lambda x:x[:6] == 'filXYs',files)) > 0):
+    if len(subFolders) == 0 and (len(list(filter(lambda x:x[-4:] == '.tif',files))) > 0 or len(list(filter(lambda x:x[:6] == 'filXYs',files))) > 0):
         entries = root.split(os.sep)
         top_folder = '/'.join(entries[:-1])
         exp_num    = entries[-1]
-        if not process_folders.has_key(top_folder):
+        if top_folder not in process_folders:
             process_folders[top_folder] = []
         process_folders[top_folder].append(exp_num)
 
@@ -350,7 +346,7 @@ for top_root in sorted_top_roots:
         start_t      = time.time()
             
         #Parallel-execution of filament extraction of all the frames
-        out          = commands.getstatusoutput("parallel -a "+input_file+" python "+script_file)
+        out          = subprocess.getstatusoutput("parallel -a "+input_file+" python3 "+script_file)
         if verbose:
             for i in out:
                 print(i)

@@ -1,10 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #Plotting parameters
 #Tural Aksel
 
+import os
 import matplotlib
-matplotlib.use('TkAgg')
+if os.environ.get('DISPLAY', '') == '':
+    matplotlib.use('Agg')
+else:
+    matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as py
 import matplotlib.cm as cm
@@ -29,7 +33,7 @@ params = {'axes.labelsize':40,
           'lines.linewidth' : 10,
           'mathtext.fontset':'cm',
           'mathtext.default' :'regular',
-          'mathtext.fallback_to_cm' : True,
+          'mathtext.fallback' : 'cm',
           'axes.formatter.limits' : (-4, 4),
           'figure.subplot.top'    : 0.95,
           'figure.subplot.bottom' : 0.135
@@ -60,6 +64,6 @@ def get_figsize(fig_width_pt):
     fig_size =  [fig_width,fig_height]      # exact figsize
     return fig_size
 
-def make_N_colors(cmap_name, N): 
-    cmap = cm.get_cmap(cmap_name, N) 
-    return cmap(np.arange(N)) 
+def make_N_colors(cmap_name, N):
+    cmap = matplotlib.colormaps[cmap_name].resampled(N)
+    return cmap(np.arange(N))

@@ -1,10 +1,6 @@
-#!/home/ankitg/anaconda3/envs/FAST3/bin/python3.12
+#!/usr/bin/env python3
 import os
 import sys
-
-if sys.version_info[0] < 3:
-    sys.exit("Do not run this program under Python 2.")
-
 import argparse
 import warnings
 import scyjava
@@ -25,11 +21,7 @@ usage            = ['%(prog)s -d [DIRECTORY]',
                     '',
                     'This is a specific version created to explode image stacks, optimize the',
                     'image with ImageJ, and extract elapsed times from MicroManager metadata,',
-                    'and write them in a way that is compatible with FAST. This program',
-                    'requires Python 3 to run the ImageJ module. You must switch to an',
-                    'environment that is running Python 3. Note that FAST will not run with',
-                    'Python 3, so you must switch back to Python 2.7 to complete your',
-                    'analysis.',
+                    'and write them in a way that is compatible with FAST.',
                     '------------------------------------------------------------------------'
                     ]
 
@@ -59,7 +51,7 @@ Recurse through each data directory
 '''
 for root, subFolders, files in os.walk(main_dir):
     if len(subFolders) == 0:
-        tif_files = filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif', files)
+        tif_files = list(filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif', files))
         for tif_file in tif_files:
             motility.stack_to_tiffs_py3(root+'/'+tif_file,frame_rate,extract_metadata)
 

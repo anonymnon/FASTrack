@@ -43,11 +43,9 @@ $sudo apt install maven
 ```
 
 ### Misc
-I often ran into the following error during installation of FAST: `Failed building wheel for subprocess32`
-
-This was solved by installing multiple python basic packages:
+If you run into wheel build failures during installation of FAST's dependencies, installing these basic packages tends to resolve them:
 ```
-sudo apt install python-dev
+sudo apt install python3-dev
 sudo apt install libffi-dev
 sudo apt install build-essential
 ```
@@ -73,12 +71,12 @@ On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in y
 
 Before you install this package, remove previous installations and make sure to delete any lines with `FAST` in `.bashrc`, '`.profile` or `.bash_profile` files in your home directory (`~`).  
 
-### Installing FAST to python 2.7 environment
-Installing this package inside python virtual environment is highly encouraged. After installing `virtualenv` and `virtualenvwrapper`, create a python2 virtual environnment.
+### Installing FAST to a python 3 environment
+Installing this package inside a python virtual environment is highly encouraged. After installing `virtualenv` and `virtualenvwrapper`, create a python3 virtual environment.
 
-Create a virtual environment with python2.7.
+Create a virtual environment with python3 (FAST requires Python 3.8+).
 
-`$mkvirtualenv FAST -p python2.7$`
+`$mkvirtualenv FAST -p python3$`
 
 Remember to activate the virtual environment
 
@@ -86,30 +84,13 @@ Remember to activate the virtual environment
 
 To install the FAST package, clone this repository and extract into the directory of your choice. Within the directory, execute the following command:
 
-`$(FAST) pip install FASTrack` 
+This particular version is only managed through github. Clone the repository through github or install github to your computer. The original/master version can be found at  [FASTrack](https://github.com/turalaksel/FASTrack/tree/master/FAST).
 
-This particular version is only managed through github. Clone the repository through github or install github to your computer. The original/master version can be found at  [FASTrack](https://github.com/turalaksel/FASTrack/tree/master/FAST). 
+`$(FAST) pip install .`
 
-`$(FAST) pip install .` 
+This single environment also installs the `pyimagej`/`scyjava` modules needed to run **stack2tifspy3**, so there is no longer a need for a separate Python 2/3 split.
 
-Everytime you need to use `FAST`, remember to activate `FAST` virtual environment typing `workon FAST` on terminal.
-
-### Installing FAST to python 3 environment to use stack2tifspy3
-To run **stack2tifspy3**, you will need to create a Python3 virtual environment and install the ImageJ module. Create a python3 virtual environment:
-
-`$mkvirtualenv FAST3 -p python3$`
-
-Remember to activate the virtual environment if you are not on it already.
-
-`$workon FAST3`
-
-Go to your FAST directory and install the package
-
-`$(FAST3) pip install .`
-
-Inside your Python3 virtual environment:
-
-`$(FAST3) pip install pyimagej`
+Everytime you need to use `FAST`, remember to activate the `FAST` virtual environment by typing `workon FAST` on terminal.
 
 After installation don't move the FAST directory to some other location.
 
@@ -121,7 +102,7 @@ After installation don't move the FAST directory to some other location.
     stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND
      ```
 
-- (Update by Ankit 7/27/2021) The prior stack2tifs script did not universally handle files captured from Micromanager. The updated stack2tifspy3 takes a directory containing an image stack, explodes the stack into individual frames, autoenhances the images using ImageJ, and saves the new frame with names that are compatible with the original FAST program. If the directory contains a *_metadata.txt file where * = the exact same name as the image and the "-t" parameter is given any argument; the elapsed times will be extracted and written to a new metadata file that is compatible with the original FAST program. If no metadata file exists, do not use the "-t" argument and the program will write a metadata file based on the frame rate provided by the "-f" argument. THIS SCRIPT MUST BE RUN UNDER A PYTHON3 ENVIRONMENT since the ImageJ module requires Python 3. Recommend creating a Python3 environment, running this script, then switching back to a Python 2.7 environment to continue the analysis. FAST WILL NOT WORK UNDER PYTHON3.
+- (Update by Ankit 7/27/2021) The prior stack2tifs script did not universally handle files captured from Micromanager. The updated stack2tifspy3 takes a directory containing an image stack, explodes the stack into individual frames, autoenhances the images using ImageJ, and saves the new frame with names that are compatible with the original FAST program. If the directory contains a *_metadata.txt file where * = the exact same name as the image and the "-t" parameter is given any argument; the elapsed times will be extracted and written to a new metadata file that is compatible with the original FAST program. If no metadata file exists, do not use the "-t" argument and the program will write a metadata file based on the frame rate provided by the "-f" argument. As of the latest update, FAST runs entirely under Python 3, so stack2tifspy3 and the rest of the FAST toolchain (fast, lima, stack2tifs) can all be run from the same environment.
    
      ```
     stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE

@@ -1,11 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import numpy as np
 import os
 import sys
-
-if sys.version_info[0] >= 3:
-    sys.exit("Do not run this program under Python 3.")
-
 import argparse
 import warnings
 
@@ -47,6 +43,6 @@ if main_dir == None or not os.path.isdir(main_dir):
 Recurse through each data directory
 '''
 for root, subFolders, files in os.walk(main_dir):
-    tif_files = filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif', files)
+    tif_files = list(filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif', files))
     for tif_file in tif_files:
         motility.stack_to_tiffs(root+'/'+tif_file, frame_rate)
