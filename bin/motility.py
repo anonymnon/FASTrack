@@ -5,7 +5,6 @@
 import sys
 import os
 import matplotlib
-from pathlib import Path
 
 #Detect if running without display
 if os.environ.get('DISPLAY', '') == '':
@@ -57,9 +56,9 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
         f = open(new_dir+os.sep+'metadata.txt','w')
         elapsed_time_ms = 0.0
         for i in range(num_frames):
-            fout = Path(new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif')
+            fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
             imwrite(fout,tiff_frames[i])
-            
+
             #Auto-adjust brightness/contrast/window/level with ImageJ
             print("Autoadjusting {}with ImageJ".format(fout))
             macro = """
@@ -70,9 +69,9 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
             run("Median...", "radius=3 stack");
             run("Save");
             close();
-            """.format(filepath=fout.as_posix())
+            """.format(filepath=fout)
             ij.py.run_macro(macro)
-            
+
             #Write elapsed times
             f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
             elapsed_time_ms += 1000*1.0/frame_rate
@@ -82,9 +81,9 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
     if extract_metadata:
         original_metadata = open
         for i in range(num_frames):
-            fout = Path(new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif')
+            fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
             imwrite(fout,tiff_frames[i])
-            
+
             #Auto-adjust brightness/contrast/window/level with ImageJ
             print("Autoadjusting {} with ImageJ".format(fout))
             macro = """
@@ -95,7 +94,7 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
             run("Median...", "radius=3 stack");
             run("Save");
             close();
-            """.format(filepath=fout.as_posix())
+            """.format(filepath=fout)
             ij.py.run_macro(macro)
             
             #Write elapsed times
