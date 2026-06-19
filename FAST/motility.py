@@ -863,13 +863,24 @@ class Motility:
             
         #Get colors from a colormap
         path_colors = make_N_colors('Accent',len(filtered_paths))
-        
-        py.figure(2000)
-        py.imshow(self.path_img,cmap=cm.gray,alpha=1.0)
-        
-        py.figure(2001)
-        py.imshow(self.path_img,cmap=cm.gray,alpha=1.0)
-        
+
+        #Render the figures at exactly the raw tif's pixel resolution, with the
+        #axes filling the entire canvas (no margins/border), so paths_2D.png is
+        #pixel-for-pixel superimposable on the raw img_000000*__000.tif frames
+        path_dpi = 100
+
+        fig_2000 = py.figure(2000,figsize=(self.height/path_dpi,self.width/path_dpi),dpi=path_dpi)
+        fig_2000.clf()
+        ax_2000  = fig_2000.add_axes([0,0,1,1])
+        ax_2000.imshow(self.path_img,cmap=cm.gray,alpha=1.0,aspect='auto')
+        ax_2000.axis('off')
+
+        fig_2001 = py.figure(2001,figsize=(self.height/path_dpi,self.width/path_dpi),dpi=path_dpi)
+        fig_2001.clf()
+        ax_2001  = fig_2001.add_axes([0,0,1,1])
+        ax_2001.imshow(self.path_img,cmap=cm.gray,alpha=1.0,aspect='auto')
+        ax_2001.axis('off')
+
         #Go through each path and write velocities
         for i in range(len(filtered_paths)):
             path = filtered_paths[i]
@@ -912,25 +923,39 @@ class Motility:
         #Convert path data to numpy array
         self.path_stats = np.array(self.path_stats)
         
+        paths_2D_fname = self.directory+'/paths_2D.png'
+
         py.figure(2000)
-        
-        ax = py.gca()
-        ax.xaxis.set_visible(False)
-        ax.yaxis.set_visible(False)
-        py.savefig(self.directory+'/paths_2D.png',dpi=400,transparent=False)
-        
+        py.savefig(paths_2D_fname,dpi=path_dpi,transparent=False)
+
+        #matplotlib's dpi/figsize rounding can be off by a pixel - force the
+        #saved image to exactly (height,width) so it stays pixel-for-pixel
+        #superimposable on the raw img_000000*__000.tif frames
+        self._force_exact_size(paths_2D_fname)
+
         py.figure(2001)
-        ax = py.gca()
-        ax.xaxis.set_visible(False)
-        ax.yaxis.set_visible(False)
-        
+
         if not extra_fname == None:
             py.figure(2001)
-            py.savefig(extra_fname+'_2D.png',dpi=400,transparent=False)
-        
+            extra_paths_2D_fname = extra_fname+'_2D.png'
+            py.savefig(extra_paths_2D_fname,dpi=path_dpi,transparent=False)
+            self._force_exact_size(extra_paths_2D_fname)
+
         py.close('all')
-        
+
         return self.path_data
+
+    def _force_exact_size(self,png_fname):
+        '''
+        Force a saved png to exactly (self.width,self.height) pixels, correcting
+        any off-by-one-pixel rounding from matplotlib's dpi/figsize conversion
+        '''
+        img = cv2.imread(png_fname)
+        if img is None:
+            return
+        if img.shape[:2] != (self.width,self.height):
+            img = cv2.resize(img,(self.height,self.width))
+            cv2.imwrite(png_fname,img)
     
     def write_path_data(self, extra_fname = None):
         #Write paths info
