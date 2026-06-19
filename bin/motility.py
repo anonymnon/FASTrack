@@ -1277,7 +1277,18 @@ class Motility:
         self.frame.header    = self.header
         self.frame.tail      = self.tail
         self.frame.frame_no  = num_frame
-        
+
+        #self.width/self.height default to hardcoded values and never get
+        #synced from the actual tif dimensions unless we read them here - keep
+        #them in sync so paths_2D.png and the overlay movie match the real
+        #frame resolution exactly (otherwise plot_2D_path_data renders at the
+        #wrong size and downstream resizing introduces a positional offset)
+        fname = self.directory+'/'+self.header+'%03d'%num_frame+'_'+self.tail+'_000.tif'
+        if os.path.isfile(fname):
+            dims_img = cv2.imread(fname,cv2.IMREAD_GRAYSCALE)
+            if dims_img is not None:
+                self.width,self.height = dims_img.shape
+
         #If already exists load the saved array file
         filament_file = self.directory+'/filXYs%03d.npy'%num_frame
         if not force_read and os.path.isfile(filament_file):
