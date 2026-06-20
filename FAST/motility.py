@@ -941,10 +941,10 @@ class Motility:
                 
                 #Plot the arrows connecting path
                 py.figure(2000)
-                py.arrow(mp_x2,mp_y2,mp_x1-mp_x2,mp_y1-mp_y2,color=path_colors[i],head_width=ratio*5,head_length=ratio*10,alpha=1.0)
-                
+                py.arrow(mp_x2,mp_y2,mp_x1-mp_x2,mp_y1-mp_y2,color=path_colors[i],head_width=ratio*2.5,head_length=ratio*5,linewidth=ratio*0.5,alpha=1.0)
+
                 py.figure(2001)
-                py.arrow(mp_x2,mp_y2,mp_x1-mp_x2,mp_y1-mp_y2,color=path_colors[i],head_width=ratio*5,head_length=ratio*10,alpha=1.0)
+                py.arrow(mp_x2,mp_y2,mp_x1-mp_x2,mp_y1-mp_y2,color=path_colors[i],head_width=ratio*2.5,head_length=ratio*5,linewidth=ratio*0.5,alpha=1.0)
             
             #Write mean velocity for the path
             py.figure(2001)
@@ -1229,7 +1229,7 @@ class Motility:
         os.system('rm -f skeletons_*.png')
         os.chdir(cwd)
 
-    def make_overlay_movie(self,frame_nos,alpha=0.5,fps=5,extra_fname=None):
+    def make_overlay_movie(self,frame_nos,alpha=1.0,fps=5,extra_fname=None):
         '''
         Make a movie of the raw tif frames overlaid on top of the paths_2D.png
         background at the given opacity, encoded as an H.264 mp4 so it plays
