@@ -1,6 +1,4 @@
-# FAST v2.0.0-alpha.1: Fast Automated Spud Tracker
-
-README A WORK IN PROGRESS
+# FAST v1.0.1a1: Fast Automated Spud Tracker
 
 Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 2015. Ensemble force changes that result from human cardiac myosin mutations and a small molecule effector.**][1]
 
@@ -11,108 +9,152 @@ Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 20
 &copy; 2020 Tural Aksel
 
 ## Foreword
-This is a massive update for the previous program built by Tural Aksel to update it to work with modern Python 3. This updating was done by Claude Code AI. This builds on a previous version I had made which added a **stack2tifs** script called **stack2tifspy3** that allows for a bit more automated processing of images that were captured by Micro-manager open source microscope software. There was no alteration to the underlying calculations that were done by the original software. Furthermore, the original software is fully operational after some minor debugging (which may include editing some of the source code). Thus, you should cite the original paper by Tural Aksel if you use this repository.
 
-If you do not have experience with Linux or Python, this software may be difficult to use. Though the hope is that anybody can run this software under any Linux machine, it will very likely not work as-is without some effort on the user's end to try to troubleshoot the software. As of 7/30/21, Tural Aksel does not seem to be answering any further questions on his original FASTrack software. You are welcome to contact me with any bugs at anonymnon@gmail.com but realize that I am not a programmer nor am I planning to actively maintain this repository. Also, all the instructions provided below are for Linux. I found MacOS to be too cumbersome.
+This fork started as a minor update to Tural Aksel's original FASTrack program to fix issues running it on modern Ubuntu, plus a new image-import script (**stack2tifspy3**, see below). Since then it has been substantially modernized using **Claude Code** (Anthropic's AI coding assistant) as a development tool. Changes made with Claude Code's help include:
+
+- A full port of the codebase from Python 2 to Python 3 (the original program targeted Python 2 and required a Python 2/3 split toolchain).
+- Replacement of the per-frame GNU-parallel subprocess pipeline with a persistent `multiprocessing` worker pool for faster, simpler parallel frame processing (GNU `parallel` is no longer a required dependency).
+- Bug fixes in the filament link-scoring/disambiguation logic (`make_frame_links`, `wire_frame_links` in `FAST/motility.py`) that affected how confidently two filament detections in adjacent frames are linked into the same track.
+- A typo fix so the `-dlascore` command-line option actually reaches the underlying analysis code (previously silently ignored).
+- Various Python 3 compatibility fixes (integer division, deprecated `skimage`/`numpy` APIs, ragged `np.save`/`np.load` array handling, etc.).
+- New movie-overlay rendering (raw frames blended onto the `paths_2D.png` tracking background, encoded as a cross-platform `.mp4` via `ffmpeg`) and pixel-exact frame sizing so tracking overlays line up with the raw `.tif` frames.
+- General dependency, packaging, and warning/noise cleanup.
+
+**No changes were made to the core scientific calculations/algorithms** beyond the bug fixes noted above, which corrected unintended deviations from the original scoring logic rather than introducing new analysis behavior. **You should still cite the original paper by Tural Aksel** (see citation above) if you use this software or its outputs.
+
+If you do not have experience with the command line or Python, this software will be difficult to use, regardless of which OS you're on. As of 7/30/21, Tural Aksel is **no longer responding to questions** about the original FASTrack software, and the maintainer of this fork is likewise not a professional programmer and is not actively maintaining this repository as a supported product. Use everything here at your own risk, and expect to do some of your own troubleshooting.
 
 ## Dependencies
 
-There are several packages that either do not seem to install properly or are not a part of the original installation. Installing the following packages helped me to avoid errors, but you will likely need to troubleshoot your own environment. For those unfamiliar with Linux, please realize that any `sudo` command will result in running in executing something as a super user. USE AT YOUR OWN RISK. It is very possible to break your Linux installation.
+Most Python dependencies install automatically via `pip` (see `setup.py` / `requirements.txt`). However, several dependencies are **not** Python packages and must be installed manually at the operating-system level before (or after) installing FAST, because `pip` cannot install them for you:
 
-### Installing virtualenv and virtualenvwrapper
+| Dependency | Why it's needed | Notes |
+|---|---|---|
+| **Java JDK (8 or 11)** | Required by `pyimagej`/`scyjava` to run ImageJ macros, used by `stack2tifspy3` for auto contrast/threshold adjustment | Not installable via pip; install a JDK distribution for your OS |
+| **Maven** | Used by `pyimagej` to fetch ImageJ/Fiji components on first run | Needs internet access the first time it runs |
+| **ffmpeg** | Used to encode the `-om` overlay tracking movie (`.mp4`) | System binary, not a Python package |
+| **Tk / python3-tk** | Used as the GUI backend for `matplotlib` when a display is available | Often bundled with Python on Windows/macOS, but frequently missing on Linux |
+| **avconv / libav-tools** | Used by the legacy `-m` skeleton tracking movie (`.avi`) feature | Largely obsolete; most modern systems no longer ship `avconv`. If you only need tracking movies, prefer `-om` (ffmpeg-based) instead |
+| **MS-compatible TrueType fonts** | Needed for matplotlib plots to render with expected fonts on Linux | Cosmetic only; plots will still generate without this |
 
-Install virtualenv by running `sudo apt install virtualenv`
-
-Install virtualenvwrapper by running `sudo apt install virtualenvwrapper`
-
-
-**NOTE** I often get an error when trying to call virtualenvwrapper because it does not seem to get added to my PATH by default. If you want to be able to call virtualenvwrapper by typing 'mkvirtualenv', find where virtualenvwrapper was installed (for me it was `/usr/share/virtualenvwrapper/virtualenvwrapper.sh`), and add the following to your `~/.bash_profile`:
-
-```
-#Executing source command to allow mkvirtualenv command
-source "/usr/share/virtualenvwrapper/virtualenvwrapper.sh"
-```
-
-To manually activate the bash profile without closing the terminal, execute the following command:
-`source ~/.bash_profile`
-
-### Installing ImageJ for use of stack2tifspy3
-Several packages are required for ImageJ. Whether in your virtual environment or outside your virtual environment, install the following:
-
-```
-$sudo apt-get install openjdk-11-jdk
-$sudo apt install maven
-```
-
-### Misc
-If you run into wheel build failures during installation of FAST's dependencies, installing these basic packages tends to resolve them:
-```
-sudo apt install python3-dev
-sudo apt install libffi-dev
-sudo apt install build-essential
-```
-
-If you get the following error: `ImportError: No module named _tkinter, please install the python-tk package`, Do the following:
-`sudo apt install python-tk`
-
-This version of the program requires GNU-parallel. Please make sure it is installed:
-`sudo apt-get install parallel`
-
-To generate movies of tracking, install avconv package:
-`sudo apt-get install ffmpeg`.
-
-To display fonts properly on Ubuntu, install MS fonts.
-  
-`$sudo apt-get install ttf-mscorefonts-installer`
-
-On Ubuntu, after installing MD fonts, remove font cache file for matplotlib in your home directory.
-    
-`$rm -f ~/.cache/matplotlib/fontList.cache`
+If `pip install` fails with a wheel-build error for one of the Python dependencies (commonly `opencv-python`, `scikit-image`, or `numpy`), it is usually because your system is missing basic C/Python build tools (a C compiler, Python headers, libffi headers). Installing your OS's standard development toolchain packages (see OS-specific instructions below) resolves this in almost all cases.
 
 ## Installation
 
-Before you install this package, remove previous installations and make sure to delete any lines with `FAST` in `.bashrc`, '`.profile` or `.bash_profile` files in your home directory (`~`).  
+Before installing, remove any previous FASTrack installation and delete any lines referencing `FAST` left over in your shell startup files (`.bashrc`, `.profile`, `.bash_profile`, etc.) by a prior install.
 
-### Installing FAST to a python 3 environment
-Installing this package inside a python virtual environment is highly encouraged. After installing `virtualenv` and `virtualenvwrapper`, create a python3 virtual environment.
+It is **strongly recommended** to install FAST into an isolated virtual environment (via Python's built-in `venv` or via `conda`), rather than into your system/base Python. FAST requires **Python 3.8+**.
 
-Create a virtual environment with python3 (FAST requires Python 3.8+).
+Clone the repository first:
 
-`$mkvirtualenv FAST -p python3$`
+```bash
+git clone https://github.com/anonymnon/FASTrack.git
+cd FASTrack
+```
 
-Remember to activate the virtual environment
+### Linux (Ubuntu/Debian-based)
 
-`$workon FAST`
+1. Install system-level build tools and the manual dependencies listed above:
+   ```bash
+   sudo apt update
+   sudo apt install python3-dev python3-venv python3-tk libffi-dev build-essential
+   sudo apt install openjdk-11-jdk maven
+   sudo apt install ffmpeg
+   sudo apt install ttf-mscorefonts-installer   # optional, for matplotlib font rendering
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python3 -m venv ~/.venvs/FAST
+   source ~/.venvs/FAST/bin/activate
+   ```
+3. Install FAST from the cloned repository:
+   ```bash
+   pip install --upgrade pip
+   pip install .
+   ```
+4. (Optional) If matplotlib font caching causes display glitches after installing fonts, clear its cache:
+   ```bash
+   rm -f ~/.cache/matplotlib/fontList.cache
+   ```
 
-To install the FAST package, clone this repository and extract into the directory of your choice. Within the directory, execute the following command:
+To use FAST again later, just re-activate the virtual environment: `source ~/.venvs/FAST/bin/activate`.
 
-This particular version is only managed through github. Clone the repository through github or install github to your computer. The original/master version can be found at  [FASTrack](https://github.com/turalaksel/FASTrack/tree/master/FAST).
+### macOS
 
-`$(FAST) pip install .`
+1. Install [Homebrew](https://brew.sh/) if you don't already have it.
+2. Install the manual dependencies:
+   ```bash
+   brew install python@3.11 openjdk@11 maven ffmpeg
+   ```
+   Make sure the installed JDK is on your `PATH` (Homebrew will print instructions, typically something like `export PATH="/opt/homebrew/opt/openjdk@11/bin:$PATH"`).
+3. Create and activate a virtual environment:
+   ```bash
+   python3 -m venv ~/.venvs/FAST
+   source ~/.venvs/FAST/bin/activate
+   ```
+4. Install FAST:
+   ```bash
+   pip install --upgrade pip
+   pip install .
+   ```
 
-This single environment also installs the `pyimagej`/`scyjava` modules needed to run **stack2tifspy3**, so there is no longer a need for a separate Python 2/3 split.
+Tk is bundled with the python.org/Homebrew Python builds, so a separate Tk install usually isn't required on macOS.
 
-Everytime you need to use `FAST`, remember to activate the `FAST` virtual environment by typing `workon FAST` on terminal.
+### Windows
 
-After installation don't move the FAST directory to some other location.
+Using a `conda`/Miniconda environment is the most reliable approach on Windows, since it can manage the Java dependency for you alongside Python.
+
+1. Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda.
+2. Open an "Anaconda Prompt" and create an environment:
+   ```bat
+   conda create -n FAST python=3.11
+   conda activate FAST
+   ```
+3. Install Java and Maven into the same environment via conda-forge (avoids a separate manual JDK install):
+   ```bat
+   conda install -c conda-forge openjdk=11 maven ffmpeg
+   ```
+4. From the cloned repository directory, install FAST:
+   ```bat
+   pip install --upgrade pip
+   pip install .
+   ```
+
+Alternatively, if you prefer plain `venv` instead of conda on Windows, install Python from [python.org](https://www.python.org/) (Tk is included by default), separately install a JDK (e.g. [Eclipse Temurin](https://adoptium.net/)) and [Maven](https://maven.apache.org/download.cgi), and [ffmpeg](https://ffmpeg.org/download.html#build-windows), making sure each is added to your `PATH`. Then:
+```bat
+python -m venv %USERPROFILE%\venvs\FAST
+%USERPROFILE%\venvs\FAST\Scripts\activate
+pip install --upgrade pip
+pip install .
+```
+
+### Re-installing after pulling updates or applying a patch
+
+`pip install .` (without `-e`) makes a snapshot copy of the code into your environment. If you pull new commits, apply a patch, or edit the source yourself, re-run the install so the changes take effect:
+```bash
+pip install --force-reinstall --no-deps .
+```
+If you'd rather have your installed environment automatically reflect any source edits without reinstalling, use an editable install instead: `pip install -e .`
+
+After installation, don't move the `FASTrack` directory to a different location without reinstalling.
 
 ## Preparation of movie files
 
-- **fast** only analyzes movie tif files recorded using  [micro-manager](https://www.micro-manager.org/). For movies, recorded using other software, first save the movie as tiff stacks and convert the stacks to micro-manager output format using **stack2tiffs**.
-   
-     ```
-    stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND
-     ```
+- **fast** only analyzes movie tif files recorded using [micro-manager](https://www.micro-manager.org/). For movies recorded using other software, first save the movie as tiff stacks and convert the stacks to micro-manager output format using one of the stack-conversion scripts below.
 
-- (Update by Ankit 7/27/2021) The prior stack2tifs script did not universally handle files captured from Micromanager. The updated stack2tifspy3 takes a directory containing an image stack, explodes the stack into individual frames, autoenhances the images using ImageJ, and saves the new frame with names that are compatible with the original FAST program. If the directory contains a *_metadata.txt file where * = the exact same name as the image and the "-t" parameter is given any argument; the elapsed times will be extracted and written to a new metadata file that is compatible with the original FAST program. If no metadata file exists, do not use the "-t" argument and the program will write a metadata file based on the frame rate provided by the "-f" argument. As of the latest update, FAST runs entirely under Python 3, so stack2tifspy3 and the rest of the FAST toolchain (fast, lima, stack2tifs) can all be run from the same environment.
-   
-     ```
-    stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE
-     ```
+- **stack2tifs** is the original/legacy stack-splitting script. It is kept for backwards compatibility but is no longer the recommended path.
+   ```
+   stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND
+   ```
+
+- **stack2tifspy3** is the new, recommended script (added 7/27/2021, modernized further since). The original `stack2tifs` did not reliably handle all files captured from Micro-Manager; `stack2tifspy3` takes a directory containing an image stack, explodes the stack into individual frames, auto-enhances each frame using ImageJ (contrast/threshold/median filtering), and writes frames with names compatible with the rest of the FAST toolchain. If the source directory contains a `*_metadata.txt` file (where `*` matches the image's base filename) and the `-t` flag is given, elapsed frame times are extracted from that file and written into a FAST-compatible metadata file. If no such metadata file exists, omit `-t` and the program will instead generate elapsed times from the `-f` frame-rate argument. Since FAST now runs entirely under Python 3, `stack2tifspy3` and the rest of the toolchain (`fast`, `lima`, `stack2tifs`) all run from the same environment - there is no longer a Python 2/3 split.
+   ```
+   stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE
+   ```
 
 - **DIRECTORY** is the top directory in which tiff stacks are stored.
-- **FRAMERATE** is the frame rate of the movies in frame per second **(Default: 1)**. Process movies with different frame rates separately.
-- **SIZELOWERBOUND** is the lower bound for the size (Mbytes) of the tiff stacks to be converted into individual tiffs **(Default: 6)**. Only tiffstacks bigger in size than SIZELOWERBOUND are processed.
+- **FRAMERATE** is the frame rate of the movies in frames per second **(Default: 1)**. Process movies with different frame rates separately.
+- **SIZELOWERBOUND** is the lower bound for the size (Mbytes) of the tiff stacks to be converted into individual tiffs **(Default: 6)**. Only tiff stacks bigger than SIZELOWERBOUND are processed.
 
 ## Analysis of movies using FAST
 
@@ -120,29 +162,42 @@ After installation don't move the FAST directory to some other location.
    - LEVEL1 (e.g. date)
        - LEVEL2 (e.g. slide number)
             - LEVEL3 (e.g. experimental condition)
-                - LEVEL4 (e.g. replicates)   
- 
+                - LEVEL4 (e.g. replicates)
+
 - All **fast** needs is the top directory the movie folders are located at.
-    ```    
+    ```
     fast -d LEVEL1
     ```
 
 - **FAST** first finds the lowest LEVEL directories that have movie folders under **LEVEL1**, and analyzes them in order. The lowest level movies (folders) under the same directory are treated as replicates. The results from replicates are combined to determine the average results. Therefore, it is important that the replicates have identical frame rates. Please check example movie files in the **examples/unloaded_motility** directory.
 
 - **FAST** accepts various parameters for comprehensive analysis of filament velocities and for display of results.
-    - ``` -n  WINDOWSIZE ``` : Number of consecutive frames for velocity averaging **(Default:5)**.
-    - ``` -p  PATHLENGTH ``` : Minimum length for the tracked filament paths in the analysis **(Default:5)**.
-    - ``` -pt TOLERANCE``` : Percent tolerance parameter to filter fluctuating velocities **(Default:None)**.
-    - ```-cl COLOR```: Color of the data points in velocity scatter plot **(Default:blue)**.
-    - ```-fx FUNCTION```: Function to be fitted to maximal velocity data. **exp** for single exponential decay, **uyeda** for Uyeda equation and **none** for no curve fitting **(Default:none)**.
-    - ```-px PIXEL```: Pixel size in nm **(Default:80.65)**.  
-    - ```-ymax YMAX```: Maximum velocity in nm/s for the scatter plot **(Default:1500)**.
-    - ```-xmax XMAX```: Maximum filament length in nm for the scatter plot **(Default:10000)**.
-    - ```-mv MV```: Maximum allowed distance in nm between adjacent frames for a filament (Default:2016.25)
 
-- To estimate maximum velocities TOP5% and PLATEAU, I recommend the following parameter set.
+    **General/output parameters:**
+    - ``` -n  WINDOWSIZE ``` : Number of consecutive frames to average over when computing a smoothed instantaneous velocity for each point along a path **(Default:5)**.
+    - ``` -p  PATHLENGTH ``` : Minimum number of linked frames a filament's path must have to be included in the analysis. Filters out short, unreliable tracks **(Default:5)**.
+    - ``` -pt TOLERANCE``` : Percent tolerance, given as a whole-number percentage (e.g. `30` for 30%), used to filter out points whose velocity fluctuates too much (standard deviation relative to the mean) within the averaging window from `-n`. A higher value keeps more (noisier) points **(Default:None, i.e. no filtering)**.
+    - ```-cl COLOR```: Matplotlib color name/code used for the maximum-velocity data points in the length-vs-velocity scatter plot **(Default:blue)**.
+    - ```-fx FUNCTION```: Curve to fit to the maximum-velocity-vs-length data. `exp` fits a single exponential decay (coupling) model, `uyeda` fits the Uyeda length-velocity equation, and `none` skips curve fitting **(Default:none)**.
+    - ```-px PIXEL```: Pixel size of the camera/microscope setup, in nanometers. Used to convert all pixel-based measurements (distance, length, velocity) into physical units **(Default:80.65)**.
+    - ```-ymax YMAX```: Maximum velocity (nm/s) shown on the y-axis of the scatter plot **(Default:1500)**.
+    - ```-xmax XMAX```: Maximum filament length (nm) shown on the x-axis of the scatter plot **(Default:10000)**.
+    - ```-maxd MAXD```: Maximum allowed center-of-mass displacement (in nm) for the same filament between two adjacent frames; candidate links farther apart than this are never considered the same filament **(Default: 10x the `-px` pixel size)**.
+    - ```-minv MINV```: Minimum average path velocity (nm/s) for a filament's path to be considered "moving" rather than stuck. Paths averaging below this are classified as stuck and given zero velocity in some outputs **(Default: equal to the `-px` pixel size)**.
+    - ```-m```: Generate a legacy frame-by-frame tracking movie (`.avi`, via `avconv`) showing reconstructed skeletons and motion arrows.
+    - ```-om```: Generate an overlay tracking movie (`.mp4`, via `ffmpeg`) blending the raw frames onto the `paths_2D.png` tracking background.
+    - ```-ofps FPS```: Frame rate for the `-om` overlay movie **(Default:5)**.
+    - ```-r```: Recalculate velocities from previously-saved per-frame filament data, skipping image re-processing (fast iteration on a new parameter set).
+    - ```-f```: Force a full re-analysis from the raw images, ignoring any cached per-frame/link data.
+
+    **Filament-linking score cutoffs (advanced - only change these if you understand the scoring algorithm in [Aksel et al. 2015][1]):**
+    - ```-oscore OSCORE```: Overlap-score cutoff. The overlap score measures how directionally/spatially consistent a candidate filament match is between two frames; candidates with an absolute overlap score at or below this cutoff are rejected as a match **(Default:0.4)**.
+    - ```-lascore LASCORE```: Log-area-score cutoff. The (log10) area score measures how similar in size/shape two candidate filament detections are; candidates whose log-area score is at or above this cutoff (i.e. too dissimilar in area) are rejected **(Default:1.0)**.
+    - ```-dlascore DLASCORE```: Difference-log-area-score cutoff. When more than one candidate in the next frame could plausibly match a given filament, this is the minimum log-area-score gap required between the best and second-best candidate for the match to be accepted unambiguously. If two candidates are too close in score, the (ambiguous) link is rejected rather than guessed at **(Default:0.5)**.
+
+- To estimate maximum velocities TOP5% and PLATEAU, the following parameter set is recommended.
     - ``` fast -n 5 -p 10 -pt 20 -d LEVEL1```
-- For loaded motility experiments, I recommend the following parameter set.
+- For loaded motility experiments, the following parameter set is recommended.
     - ``` fast -n 5 -p 10 -d LEVEL1 ```
 - Analysis results are stored in **outputs** folder in the path FAST is executed. Analysis results with different parameter sets are stored in different folders. For example, the results for **LEVEL1** analyzed using the parameters ``` -n 5 -p 10 and -pt 20``` are stored in **outputs/LEVEL1_n_5_p_10_pt_20**. Combined results from replicates at the lowest level (LEVEL4) are stored in a subfolder called **combined**.
 
@@ -150,25 +205,26 @@ After installation don't move the FAST directory to some other location.
     - ```fast -r -n 10 -p 10 -pt 20 -d LEVEL1```
 - To force re-analyze the movies by processing through individual images, use ``` -f ``` flag.
    -  ```fast -f -n 10 -p 10 -pt 20 -d LEVEL1```
- 
- - To make tracking movies, use ``` -m ``` flag.
- 
-     - ``` fast -m -n 10 -p 10 -pt 20 -d LEVEL1```   
+
+ - To make tracking movies, use ``` -m ``` flag (legacy, `.avi` via `avconv`) or ```-om``` flag (recommended, `.mp4` via `ffmpeg`).
+
+     - ``` fast -m -n 10 -p 10 -pt 20 -d LEVEL1```
+     - ``` fast -om -n 10 -p 10 -pt 20 -d LEVEL1```
 
 - To abort execution, press ```CTRL+C``` on terminal.
 
-- Please check the examples in **examples/unloaded_motility** to get familiar with **stack2tiffs** and **fast**.
+- Please check the examples in **examples/unloaded_motility** to get familiar with **stack2tifs**/**stack2tifspy3** and **fast**.
 
 ## Result descriptions
 
-- **fast** plots velocities as png files and prints velocity data as text files. Complete list of unfiltered velocity points are saved with the extension ```*_full_length_velocity.txt```. Maximum path velocities, which are colored in the scatter plot, are saved with the extension ```*_max_length_velocity.txt```. The plots are saved with the extension ```*_length_velocity.png```. Combined results are saved in ```combined``` folder in ```outputs``` directory.   
+- **fast** plots velocities as png files and prints velocity data as text files. Complete list of unfiltered velocity points are saved with the extension ```*_full_length_velocity.txt```. Maximum path velocities, which are colored in the scatter plot, are saved with the extension ```*_max_length_velocity.txt```. The plots are saved with the extension ```*_length_velocity.png```. Combined results are saved in ```combined``` folder in ```outputs``` directory.
 
-- First column in ```*_length_velocity.txt``` files is the filament length in nm. Second column is the mean velocity over the ```n``` frame window (see above -n WINDOWSIZE). Third column is the standard deviation of velocities within ```n``` frame window. Fourth column is the length of the track from which the velocity is measured. 
-- For description of ```*_length_velocity.png``` and the algorithms of **fast**, see [**Aksel et al. 2015**][1] 
+- First column in ```*_length_velocity.txt``` files is the filament length in nm. Second column is the mean velocity over the ```n``` frame window (see above -n WINDOWSIZE). Third column is the standard deviation of velocities within ```n``` frame window. Fourth column is the length of the track from which the velocity is measured.
+- For description of ```*_length_velocity.png``` and the algorithms of **fast**, see [**Aksel et al. 2015**][1]
 
 - ```*_paths_2D.png``` shows the tracks for each filament ad the number is the average velocity for each filament track in nm/s.
 
-- Tracking movies are saved as ```*_filament_tracks.avi``` if ```-m``` is used in fast execution. Please remember that movies will be generated, if only the packages required for movie generation are installed.
+- Tracking movies are saved as ```*_filament_tracks.avi``` if ```-m``` is used, or ```overlay_movie.mp4``` if ```-om``` is used, in fast execution. Please remember that movies will be generated only if the packages required for movie generation (`avconv` or `ffmpeg`, respectively) are installed.
 
 [1]: http://www.cell.com/cell-reports/abstract/S2211-1247(15)00381-2
 
@@ -180,11 +236,11 @@ After installation don't move the FAST directory to some other location.
 
 [1]: http://www.cell.com/cell-reports/abstract/S2211-1247(15)00381-2
 
-- To extract the "force" parameter from a set of data collected at different utrophin (or any other actin binding protein) concentrations, I wrote a python script called **lima**. LIMA stands for Loaded In vitro Motility Analysis.
+- To extract the "force" parameter from a set of data collected at different utrophin (or any other actin binding protein) concentrations, use the python script called **lima**. LIMA stands for Loaded In vitro Motility Analysis.
 
 - To use lima for loaded motility analysis, user has to name the movie files in a specific format.
 
-- **LEVEL3** (described above) should be minimally named in the following way ```PROTEINNAME_XnM_utr```. ```X``` is the utrophin concentration. For example, for a movie recorded at 0.5 nM utrophin for a myosin called **alpha**, I would name the LEVEL3 folder as ```alpha_0.5nM_utr```. For LEVEL3 and hierarchical organization of the movie folders, see above. For an example set of loaded motility data, check under ```examples/loaded_motility``` directory.
+- **LEVEL3** (described above) should be minimally named in the following way ```PROTEINNAME_XnM_utr```. ```X``` is the utrophin concentration. For example, for a movie recorded at 0.5 nM utrophin for a myosin called **alpha**, the LEVEL3 folder would be named ```alpha_0.5nM_utr```. For LEVEL3 and hierarchical organization of the movie folders, see above. For an example set of loaded motility data, check under ```examples/loaded_motility``` directory.
 
 - To run **lima**, on a set of movies processed by **fast**, first go to outputs directory where the results for the complete data set are stored. For example, if user is in ```examples/loaded_motility```, enter in terminal ```cd outputs``` to change directory to outputs.
 
@@ -197,13 +253,13 @@ After installation don't move the FAST directory to some other location.
         - ```fast -r -d 032714```
     - Move to outputs folder:
         - ```cd outputs```
-    - Process the only directory in **outputs**: 
+    - Process the only directory in **outputs**:
         - ```lima -d 032714__pt_none__n_5__ymax_1500__p_5__fx_none```
     - Check the analysis results under
-        - ```032714__pt_none__n_5__ymax_1500__p_5__fx_none/combined/lima```. 
+        - ```032714__pt_none__n_5__ymax_1500__p_5__fx_none/combined/lima```.
 
 - For different analysis options, enter ```lima -h```.
 
 ## FAQ
 
-- For questions and to report bugs, please contact me by turalaksel[at]gmail.com.
+- For questions and to report bugs in the **original** FASTrack software, the original author's contact is turalaksel[at]gmail.com - however, as of 7/30/21, Tural Aksel is no longer responding to questions about this program. This fork's maintainer is reachable at anonymnon[at]gmail.com but is not a professional programmer and does not actively maintain this repository as a supported product; please expect to do your own troubleshooting.
