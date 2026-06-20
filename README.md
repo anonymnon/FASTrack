@@ -149,12 +149,13 @@ After installation, don't move the `FASTrack` directory to a different location 
 
 - **stack2tifspy3** is the new, recommended script (added 7/27/2021, modernized further since). The original `stack2tifs` did not reliably handle all files captured from Micro-Manager; `stack2tifspy3` takes a directory containing an image stack, explodes the stack into individual frames, auto-enhances each frame using ImageJ (contrast/threshold/median filtering), and writes frames with names compatible with the rest of the FAST toolchain. If the source directory contains a `*_metadata.txt` file (where `*` matches the image's base filename) and the `-t` flag is given, elapsed frame times are extracted from that file and written into a FAST-compatible metadata file. If no such metadata file exists, omit `-t` and the program will instead generate elapsed times from the `-f` frame-rate argument. Since FAST now runs entirely under Python 3, `stack2tifspy3` and the rest of the toolchain (`fast`, `lima`, `stack2tifs`) all run from the same environment - there is no longer a Python 2/3 split.
    ```
-   stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE
+   stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE -o OVERWRITE
    ```
 
 - **DIRECTORY** is the top directory in which tiff stacks are stored.
 - **FRAMERATE** is the frame rate of the movies in frames per second **(Default: 1)**. Process movies with different frame rates separately.
 - **SIZELOWERBOUND** is the lower bound for the size (Mbytes) of the tiff stacks to be converted into individual tiffs **(Default: 6)**. Only tiff stacks bigger than SIZELOWERBOUND are processed.
+- **OVERWRITE**: if a stack has already been exploded into individual frames in a previous run, `stack2tifspy3` skips it and prints a notice by default. Pass `-o yes` to force re-exploding/overwriting those frames instead (also prints a notice). **(Default: no)**.
 
 ## Analysis of movies using FAST
 
@@ -185,7 +186,7 @@ After installation, don't move the `FASTrack` directory to a different location 
     - ```-maxd MAXD```: Maximum allowed center-of-mass displacement (in nm) for the same filament between two adjacent frames; candidate links farther apart than this are never considered the same filament **(Default: 10x the `-px` pixel size)**.
     - ```-minv MINV```: Minimum average path velocity (nm/s) for a filament's path to be considered "moving" rather than stuck. Paths averaging below this are classified as stuck and given zero velocity in some outputs **(Default: equal to the `-px` pixel size)**.
     - ```-m```: Generate a legacy frame-by-frame tracking movie (`.avi`, via `avconv`) showing reconstructed skeletons and motion arrows.
-    - ```-om```: Generate an overlay tracking movie (`.mp4`, via `ffmpeg`) blending the raw frames onto the `paths_2D.png` tracking background.
+    - ```-om```: Generate an overlay tracking movie (`.mp4`, via `ffmpeg`) compositing each raw frame onto the `paths_2D.png` tracking background. Filament pixels are rendered black and opaque (darkened proportionally to their brightness), while non-filament background pixels are left fully transparent, so the path-trajectory arrows underneath remain clearly visible.
     - ```-ofps FPS```: Frame rate for the `-om` overlay movie **(Default:5)**.
     - ```-r```: Recalculate velocities from previously-saved per-frame filament data, skipping image re-processing (fast iteration on a new parameter set).
     - ```-f```: Force a full re-analysis from the raw images, ignoring any cached per-frame/link data.
@@ -199,7 +200,7 @@ After installation, don't move the `FASTrack` directory to a different location 
     - ``` fast -n 5 -p 10 -pt 20 -d LEVEL1```
 - For loaded motility experiments, the following parameter set is recommended.
     - ``` fast -n 5 -p 10 -d LEVEL1 ```
-- Analysis results are stored in **outputs/LEVEL1** in the path FAST is executed, where **LEVEL1** is just the name of the top directory passed to ```-d``` (the parameter-set suffix that earlier versions appended, e.g. ```_n_5_p_10_pt_20```, has been removed so output paths stay short and don't break on Windows). This means re-running **fast** on the same **LEVEL1** directory with a *different* parameter set will overwrite the previous results in ```outputs/LEVEL1``` rather than creating a separate folder - run different parameter sets from different working directories (or rename/move ```outputs/LEVEL1``` between runs) if you want to keep results from multiple parameter sets side by side. Combined results from replicates at the lowest level (LEVEL4) are stored in a subfolder called **combined**.
+- Analysis results are stored in **outputs/LEVEL1** in the path FAST is executed, where **LEVEL1** is just the name of the top directory passed to ```-d``` (the parameter-set suffix that earlier versions appended, e.g. ```_n_5_p_10_pt_20```, has been removed so output paths stay short and don't break on Windows). If ```outputs/LEVEL1``` already exists from a previous run, the new run is written to ```outputs/LEVEL1-2``` instead (then ```-3```, ```-4```, etc. on subsequent runs), so re-running **fast** with different parameters never overwrites a previous run's results. Combined results from replicates at the lowest level (LEVEL4) are stored in a subfolder called **combined**.
 
 - Output filenames (e.g. ```*_length_velocity.png```, ```*_full_length_velocity.txt```) are prefixed starting from **LEVEL1** onward (```LEVEL1_LEVEL2_LEVEL3_LEVEL4_...```), rather than the full input path - this keeps filenames short even when the movies are nested deep inside a long input path.
 
@@ -232,7 +233,7 @@ After installation, don't move the `FASTrack` directory to a different location 
 
 - In addition, mean and standard error of mean (SEM) for the velocity parameters are stored in **MEAN_values.txt** and **SEM_values.txt** in **combined** folder.
 
-- A **summary.csv** file is also generated for each run, with one row per processed movie (labeled by its **LEVEL2_LEVEL3_LEVEL4** path, e.g. ```CaMy1_Rep1_1_1_MMStack_Pos0.ome```) and columns for ```TOP5%``` velocity, filtered/unfiltered ```MVEL```, mean/standard-deviation/skewness of the filtered filament lengths (```FIL-LENGTH```), and every user-adjustable parameter value used for that run (```-px```, ```-p```, ```-n```, ```-pt```, ```-ymax```, ```-xmax```, ```-cl```, ```-fx```, ```-maxd```, ```-minv```, ```-oscore```, ```-lascore```, ```-dlascore```, ```-ofps```, ```-m```, ```-om```, ```-f```, ```-r```). A copy is written both to the **LEVEL1** input directory and to the top of the corresponding **outputs/LEVEL1** folder.
+- A **summary.csv** file is also generated for each run, with one row per processed movie (labeled by its **LEVEL2_LEVEL3_LEVEL4** path, e.g. ```CaMy1_Rep1_1_1_MMStack_Pos0.ome```) and columns for ```TOP5%``` velocity, filtered/unfiltered ```MVEL```, percent of stuck filaments, mean/standard-deviation/skewness of the filtered filament lengths (```FIL-LENGTH```), and every user-adjustable parameter value used for that run (```-px```, ```-p```, ```-n```, ```-pt```, ```-ymax```, ```-xmax```, ```-cl```, ```-fx```, ```-maxd```, ```-minv```, ```-oscore```, ```-lascore```, ```-dlascore```, ```-ofps```, ```-m```, ```-om```, ```-f```, ```-r```). A copy is written both to the **LEVEL1** input directory and to the top of the corresponding **outputs/LEVEL1** (or ```outputs/LEVEL1-2```, etc.) folder.
 
 ## Loaded in vitro motility analysis
 

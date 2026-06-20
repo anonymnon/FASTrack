@@ -24,6 +24,15 @@ from tifffile import imread as read_multipage
 #Lazily initialized ImageJ instance, only needed by stack_to_tiffs_py3
 _ij = None
 
+def get_exploded_dir(fname):
+    '''
+    Directory that stack_to_tiffs_py3 explodes the given stack tif file into.
+    '''
+    abs_path  = os.path.abspath(fname)
+    head,tail = os.path.split(abs_path)
+    base,ext  = os.path.splitext(tail)
+    return head+os.sep+('_'.join(base.split())).replace('#','')
+
 def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
     '''
     Read and convert tiff stack file to individual files
@@ -39,10 +48,9 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
     #Find the directory the tiff stack file is located
     abs_path  = os.path.abspath(fname)
     head,tail = os.path.split(abs_path)
-    base,ext  = os.path.splitext(tail)
-    
+
     #Make the new directory
-    new_dir   = head+os.sep+('_'.join(base.split())).replace('#','')
+    new_dir   = get_exploded_dir(fname)
     if not os.path.isdir(new_dir):
         os.mkdir(new_dir)
     print("Processing {}".format(new_dir))
@@ -1260,15 +1268,19 @@ class Motility:
             if raw is None:
                 continue
 
-            #Normalize to 8-bit grayscale and convert to color so it can be blended with the background
+            #Normalize to 8-bit grayscale
             raw_8bit = cv2.normalize(raw,None,0,255,cv2.NORM_MINMAX).astype(np.uint8)
-            raw_bgr  = cv2.cvtColor(raw_8bit,cv2.COLOR_GRAY2BGR)
 
-            if raw_bgr.shape[:2] != (bg_height,bg_width):
-                raw_bgr = cv2.resize(raw_bgr,(bg_width,bg_height))
+            if raw_8bit.shape[:2] != (bg_height,bg_width):
+                raw_8bit = cv2.resize(raw_8bit,(bg_width,bg_height))
 
-            #Overlay the raw frame on top of the background at the given opacity
-            blended = cv2.addWeighted(background,1.0-alpha,raw_bgr,alpha,0)
+            #Use filament brightness as an alpha mask so filaments are composited
+            #as black and opaque, while non-filament background pixels stay fully
+            #transparent (the paths_2D.png trajectory background shows through
+            #unchanged), making the path arrows easier to see under the filaments
+            filament_alpha = alpha*(raw_8bit.astype(np.float32)/255.0)
+            filament_alpha = cv2.merge([filament_alpha,filament_alpha,filament_alpha])
+            blended         = (background.astype(np.float32)*(1.0-filament_alpha)).astype(np.uint8)
             cv2.imwrite(tmp_dir+'/frame_%04d.png'%frame_count,blended)
             frame_count += 1
 
