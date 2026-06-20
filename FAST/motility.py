@@ -1465,7 +1465,7 @@ class Motility:
         if num_points_filtered < min_points:
             #There is no frame-link
             print('Warning: There is not enough velocity data! - %d points'%(num_points_t))
-            return -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+            return -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
         
         #Statistics data
         MVEL_filtered      = np.mean(self.full_len_vel[valid_filtered,1])
@@ -1479,7 +1479,11 @@ class Motility:
         #Get filament length and velocities
         fil_len     = self.full_len_vel[valid_filtered,0]
         fil_vel     = self.full_len_vel[valid_filtered,1]
-        
+
+        #Standard deviation and skewness of the filtered filament lengths (FIL-LENGTH)
+        std_len_filtered  = np.std(fil_len)
+        skew_len_filtered = stats.skew(fil_len)
+
         #Length histogram bin edges-centers parameters
         l_bin_edges       = np.linspace(0,max_length*1E-3, nbins)
         l_bin_centers     = 0.5*(l_bin_edges[:-1]+l_bin_edges[1:])
@@ -1792,9 +1796,9 @@ class Motility:
         
         #List to be returned
         if not fit_f == 'none':
-            return_list  = top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered
+            return_list  = top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered, std_len_filtered, skew_len_filtered
         else:
-            return_list  = top_5_velocity, percent_stuck, MVEL, MVEL_filtered, -1       , MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered
+            return_list  = top_5_velocity, percent_stuck, MVEL, MVEL_filtered, -1       , MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered, std_len_filtered, skew_len_filtered
 
         return return_list
 

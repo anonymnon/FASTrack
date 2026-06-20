@@ -199,7 +199,9 @@ After installation, don't move the `FASTrack` directory to a different location 
     - ``` fast -n 5 -p 10 -pt 20 -d LEVEL1```
 - For loaded motility experiments, the following parameter set is recommended.
     - ``` fast -n 5 -p 10 -d LEVEL1 ```
-- Analysis results are stored in **outputs** folder in the path FAST is executed. Analysis results with different parameter sets are stored in different folders. For example, the results for **LEVEL1** analyzed using the parameters ``` -n 5 -p 10 and -pt 20``` are stored in **outputs/LEVEL1_n_5_p_10_pt_20**. Combined results from replicates at the lowest level (LEVEL4) are stored in a subfolder called **combined**.
+- Analysis results are stored in **outputs/LEVEL1** in the path FAST is executed, where **LEVEL1** is just the name of the top directory passed to ```-d``` (the parameter-set suffix that earlier versions appended, e.g. ```_n_5_p_10_pt_20```, has been removed so output paths stay short and don't break on Windows). This means re-running **fast** on the same **LEVEL1** directory with a *different* parameter set will overwrite the previous results in ```outputs/LEVEL1``` rather than creating a separate folder - run different parameter sets from different working directories (or rename/move ```outputs/LEVEL1``` between runs) if you want to keep results from multiple parameter sets side by side. Combined results from replicates at the lowest level (LEVEL4) are stored in a subfolder called **combined**.
+
+- Output filenames (e.g. ```*_length_velocity.png```, ```*_full_length_velocity.txt```) are prefixed starting from **LEVEL1** onward (```LEVEL1_LEVEL2_LEVEL3_LEVEL4_...```), rather than the full input path - this keeps filenames short even when the movies are nested deep inside a long input path.
 
 - To analyze the movies with a new parameter set, use ```-r``` flag for speedy analysis.
     - ```fast -r -n 10 -p 10 -pt 20 -d LEVEL1```
@@ -229,6 +231,8 @@ After installation, don't move the `FASTrack` directory to a different location 
 [1]: http://www.cell.com/cell-reports/abstract/S2211-1247(15)00381-2
 
 - In addition, mean and standard error of mean (SEM) for the velocity parameters are stored in **MEAN_values.txt** and **SEM_values.txt** in **combined** folder.
+
+- A **summary.csv** file is also generated for each run, with one row per processed movie (labeled by its **LEVEL2_LEVEL3_LEVEL4** path, e.g. ```CaMy1_Rep1_1_1_MMStack_Pos0.ome```) and columns for ```TOP5%``` velocity, filtered/unfiltered ```MVEL```, mean/standard-deviation/skewness of the filtered filament lengths (```FIL-LENGTH```), and every user-adjustable parameter value used for that run (```-px```, ```-p```, ```-n```, ```-pt```, ```-ymax```, ```-xmax```, ```-cl```, ```-fx```, ```-maxd```, ```-minv```, ```-oscore```, ```-lascore```, ```-dlascore```, ```-ofps```, ```-m```, ```-om```, ```-f```, ```-r```). A copy is written both to the **LEVEL1** input directory and to the top of the corresponding **outputs/LEVEL1** folder.
 
 ## Loaded in vitro motility analysis
 
