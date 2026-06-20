@@ -478,26 +478,48 @@ class Motility:
                     
                     if f1+d < num_frames:
                         forward_links = list(filter(lambda link:link.reverse_link == None and np.sqrt(np.sum((link.filament1_cm - new_filament1.cm)**2)) < d*self.max_velocity and np.fabs(link.filament1_length - new_filament1.fil_length) < self.max_length_dif ,self.frame_links[f1+d]))
+
+                        #Collect all candidates passing the score thresholds, then pick the best
+                        #match by area score instead of just taking the first one that passes
+                        #(mirrors the disambiguation logic in make_frame_links)
+                        candidates = []
                         for l2 in range(len(forward_links)):
                             link2         = forward_links[l2]
                             new_filament2 = Filament()
                             new_filament2.contour    = link2.filament1_contour
                             new_filament2.fil_length = link2.filament1_length
                             new_filament2.cm         = link2.filament1_cm
-                            new_filament2.time       = link2.filament1_time 
-                            
+                            new_filament2.time       = link2.filament1_time
+
                             #Average distance score per time for link 2
                             avg_distance_score_2 = forward_links[l2].distance_score/forward_links[l2].dt
-                            
+
                             #Average distance score for the two links
                             avg_distance_score   = 0.5*(avg_distance_score_1+avg_distance_score_2)
-                            
+
                             #Calculate time difference
                             dt = new_filament2.time - new_filament1.time
-                            
+
                             #Calculate similarity scores
                             overlap_score,area_score,distance_score,fil_direction,mov_direction = new_filament1.sim_score(new_filament2)
                             if np.fabs(overlap_score) > self.overlap_score_cutoff and np.log10(area_score) < self.log_area_score_cutoff and distance_score/dt < 2*avg_distance_score and distance_score/dt > 0.5*avg_distance_score:
+                                candidates.append((link2,overlap_score,area_score,distance_score,fil_direction,mov_direction,dt))
+
+                        if len(candidates) > 0:
+                            #Sort candidates by area score (best match first)
+                            candidates.sort(key=lambda c:c[2])
+
+                            #Only accept the best candidate, and only if it's unambiguous:
+                            #either it's the lone candidate, or it's clearly better (by
+                            #dif_log_area_score_cutoff) than the second-best candidate
+                            accept = len(candidates) == 1
+                            if not accept:
+                                log_area_score_diff = np.log10(candidates[1][2]) - np.log10(candidates[0][2])
+                                accept = log_area_score_diff >= self.dif_log_area_score_cutoff
+
+                            if accept:
+                                link2,overlap_score,area_score,distance_score,fil_direction,mov_direction,dt = candidates[0]
+
                                 new_link = Link()
                                 new_link.frame1_no          = link1.frame2_no
                                 new_link.frame2_no          = link2.frame1_no
@@ -513,28 +535,28 @@ class Motility:
                                 new_link.filament2_midpoint = link2.filament1_midpoint
                                 new_link.filament1_time     = link1.filament2_time
                                 new_link.filament2_time     = link2.filament1_time
-                                
+
                                 new_link.fil_direction    = fil_direction
                                 new_link.mov_direction    = mov_direction
-                                
+
                                 new_link.overlap_score    = overlap_score
                                 new_link.area_score       = area_score
                                 new_link.distance_score   = distance_score
-                                
+
                                 new_link.average_length   = 0.5*(new_link.filament1_length+new_link.filament2_length)
                                 new_link.instant_velocity = new_link.distance_score/dt
                                 new_link.dt               = dt
-                                
+
                                 #This is not a direct connection
                                 new_link.direct_link      = False
-                                
+
                                 #Add new link to frame links
                                 self.frame_links[new_link.frame1_no].append(new_link)
-                                
+
                                 #Make the link connections
                                 link1.forward_link = new_link
                                 link2.reverse_link = new_link
-                                
+
                                 new_link.reverse_link = link1
                                 new_link.forward_link = link2
     
@@ -771,7 +793,7 @@ class Motility:
             
             if num_candidates > 0:
                 #Sort candidate list based on area score
-                sorted_i = np.argsort(link_candidates[:,2])
+                sorted_i = np.argsort(link_candidates[:,1])
                 link_candidates = link_candidates[sorted_i,:]
                 
                 #Take log scores

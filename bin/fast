@@ -380,7 +380,7 @@ def main():
                 #Assign the hard-coded parameters
                 new_motility.overlap_score_cutoff       = overlap_score_cutoff
                 new_motility.log_area_score_cutoff      = log_area_score_cutoff
-                new_motility.diff_log_area_score_cutoff = diff_log_area_score_cutoff 
+                new_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
             
                 #If links are already constructed read frame links and skip the next parts
                 if not new_motility.read_frame_links():
@@ -471,7 +471,7 @@ def main():
         #Assign the hard-coded parameters
         combined_motility.overlap_score_cutoff       = overlap_score_cutoff
         combined_motility.log_area_score_cutoff      = log_area_score_cutoff
-        combined_motility.diff_log_area_score_cutoff = diff_log_area_score_cutoff 
+        combined_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
 
         #Total number of points
         total_num_points = len(combined_full_len_vel[:,0])
