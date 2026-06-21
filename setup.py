@@ -38,8 +38,6 @@ setuptools.setup(
                     'scikit-image>=0.21.0',
                     'scipy>=1.10.0',
                     'six>=1.16.0',
-                    'tifffile',
-                    'pyimagej',
-                    'scyjava'],
+                    'tifffile'],
     python_requires='>=3.8',
 )

@@ -17,12 +17,8 @@ else:
 import re
 
 from imageio import imwrite
-from importlib import import_module
 
 from tifffile import imread as read_multipage
-
-#Lazily initialized ImageJ instance, only needed by stack_to_tiffs_py3
-_ij = None
 
 def get_exploded_dir(fname):
     '''
@@ -36,15 +32,7 @@ def get_exploded_dir(fname):
 def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
     '''
     Read and convert tiff stack file to individual files
-    Imports ImageJ on execution of this function to prevent loading
-        java when running the main program
     '''
-    global _ij
-    if _ij is None:
-        ij_module = import_module('imagej')
-        _ij = ij_module.init()
-    ij = _ij
-
     #Find the directory the tiff stack file is located
     abs_path  = os.path.abspath(fname)
     head,tail = os.path.split(abs_path)
@@ -68,19 +56,6 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
             fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
             imwrite(fout,tiff_frames[i])
 
-            #Auto-adjust brightness/contrast/window/level with ImageJ
-            print("Autoadjusting {}with ImageJ".format(fout))
-            macro = """
-            open("{filepath}");
-            run("Enhance Contrast...", "saturated=0.05 normalize process_all");
-            setAutoThreshold("Yen dark no-reset");
-            run("Convert to Mask", "method=Yen background=Dark calculate black");
-            run("Median...", "radius=3 stack");
-            run("Save");
-            close();
-            """.format(filepath=fout)
-            ij.py.run_macro(macro)
-
             #Write elapsed times
             f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
             elapsed_time_ms += 1000*1.0/frame_rate
@@ -93,19 +68,6 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
             fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
             imwrite(fout,tiff_frames[i])
 
-            #Auto-adjust brightness/contrast/window/level with ImageJ
-            print("Autoadjusting {} with ImageJ".format(fout))
-            macro = """
-            open("{filepath}");
-            run("Enhance Contrast...", "saturated=0.05 normalize process_all");
-            setAutoThreshold("Yen dark no-reset");
-            run("Convert to Mask", "method=Yen background=Dark calculate black");
-            run("Median...", "radius=3 stack");
-            run("Save");
-            close();
-            """.format(filepath=fout)
-            ij.py.run_macro(macro)
-            
             #Write elapsed times
             #Open original metadata file and extract times
             filename_head = re.findall('[^/]+$', fname) #Reconstruct filename head from fname, ex: if fname = '/date/slide/condition/pca4-5_1.repeat', filename_head = 'pca4-5_1.repeat'
