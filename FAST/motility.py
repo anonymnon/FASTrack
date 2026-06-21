@@ -16,7 +16,9 @@ else:
 
 import re
 
+import numpy as np
 from imageio import imwrite
+from skimage import exposure
 
 from tifffile import imread as read_multipage
 
@@ -28,6 +30,19 @@ def get_exploded_dir(fname):
     head,tail = os.path.split(abs_path)
     base,ext  = os.path.splitext(tail)
     return head+os.sep+('_'.join(base.split())).replace('#','')
+
+def stretch_contrast(img,p_low=0.05,p_high=99.95):
+    '''
+    Percentile-based contrast stretch, equivalent to ImageJ's
+    "Enhance Contrast...normalize" macro step. Raw camera frames only use a
+    small slice of the uint16 range (e.g. ~50-300 out of 65535), which fails
+    Frame.check_picture_quality()'s absolute intensity-difference thresholds
+    and starves entropy_clusters() of contrast to work with. Stretching the
+    frame's own percentile range across the full dtype range restores that
+    headroom without needing ImageJ/a JVM.
+    '''
+    lo,hi = np.percentile(img,(p_low,p_high))
+    return exposure.rescale_intensity(img,in_range=(lo,hi),out_range=img.dtype.type)
 
 def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
     '''
@@ -54,7 +69,7 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
         elapsed_time_ms = 0.0
         for i in range(num_frames):
             fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
-            imwrite(fout,tiff_frames[i])
+            imwrite(fout,stretch_contrast(tiff_frames[i]))
 
             #Write elapsed times
             f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
@@ -66,7 +81,7 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
         original_metadata = open
         for i in range(num_frames):
             fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
-            imwrite(fout,tiff_frames[i])
+            imwrite(fout,stretch_contrast(tiff_frames[i]))
 
             #Write elapsed times
             #Open original metadata file and extract times
