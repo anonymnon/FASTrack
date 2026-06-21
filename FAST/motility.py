@@ -1176,9 +1176,9 @@ class Motility:
 
     def make_overlay_movie(self,frame_nos,alpha=1.0,fps=5,extra_fname=None):
         '''
-        Make a movie of the raw tif frames overlaid on top of the paths_2D.png
-        background at the given opacity, encoded as an H.264 mp4 so it plays
-        natively on Windows, macOS, and Linux.
+        Make a movie of the per-frame filament skeletons overlaid on top of
+        the paths_2D.png background at the given opacity, encoded as an
+        H.264 mp4 so it plays natively on Windows, macOS, and Linux.
         '''
 
         #Check if paths_2D.png figure exists - if not do not make the movie
@@ -1205,25 +1205,32 @@ class Motility:
 
         frame_count = 0
         for frame_no in frame_nos:
-            fname = self.directory+'/'+self.header+'%03d'%frame_no+'_'+self.tail+'_000.tif'
-            if not os.path.isfile(fname):
+            filXYs_fname = self.directory+'/filXYs%03d.npy'%frame_no
+            if not os.path.isfile(filXYs_fname):
                 continue
 
-            raw = cv2.imread(fname,cv2.IMREAD_UNCHANGED)
-            if raw is None:
-                continue
+            #Draw the actual detected filament-skeleton pixels (the same
+            #contour data the paths/trajectories are built from) rather than
+            #re-deriving a filament mask from raw pixel brightness - that
+            #approach silently drifted out of alignment with the trajectory
+            #arrows once stack2tifs started contrast-stretching frames
+            #before writing them (the brightened background pixels confused
+            #the brightness-as-alpha heuristic). Drawing directly from
+            #filXYs guarantees the overlay always matches what was actually
+            #tracked, pixel for pixel.
+            filXYs = np.load(filXYs_fname,allow_pickle=True)
 
-            #Normalize to 8-bit grayscale
-            raw_8bit = cv2.normalize(raw,None,0,255,cv2.NORM_MINMAX).astype(np.uint8)
+            filament_mask = np.zeros((bg_height,bg_width),dtype=np.uint8)
+            for filXY,width,density,midpoint in filXYs:
+                rows = np.clip(filXY[:,0],0,bg_height-1)
+                cols = np.clip(filXY[:,1],0,bg_width-1)
+                filament_mask[rows,cols] = 255
 
-            if raw_8bit.shape[:2] != (bg_height,bg_width):
-                raw_8bit = cv2.resize(raw_8bit,(bg_width,bg_height))
+            #Slightly thicken the 1px skeleton so it stays visible at movie
+            #resolution/compression
+            filament_mask = cv2.dilate(filament_mask,np.ones((3,3),np.uint8))
 
-            #Use filament brightness as an alpha mask so filaments are composited
-            #as black and opaque, while non-filament background pixels stay fully
-            #transparent (the paths_2D.png trajectory background shows through
-            #unchanged), making the path arrows easier to see under the filaments
-            filament_alpha = alpha*(raw_8bit.astype(np.float32)/255.0)
+            filament_alpha = alpha*(filament_mask.astype(np.float32)/255.0)
             filament_alpha = cv2.merge([filament_alpha,filament_alpha,filament_alpha])
             blended         = (background.astype(np.float32)*(1.0-filament_alpha)).astype(np.uint8)
             cv2.imwrite(tmp_dir+'/frame_%04d.png'%frame_count,blended)
