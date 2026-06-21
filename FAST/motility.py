@@ -31,7 +31,7 @@ def get_exploded_dir(fname):
     base,ext  = os.path.splitext(tail)
     return head+os.sep+('_'.join(base.split())).replace('#','')
 
-def stretch_contrast(img,p_low=0.05,p_high=99.95):
+def stretch_contrast(img,p_low=0.05,p_high=99.95,full_range_threshold=0.9):
     '''
     Percentile-based contrast stretch, equivalent to ImageJ's
     "Enhance Contrast...normalize" macro step. Raw camera frames only use a
@@ -40,9 +40,23 @@ def stretch_contrast(img,p_low=0.05,p_high=99.95):
     and starves entropy_clusters() of contrast to work with. Stretching the
     frame's own percentile range across the full dtype range restores that
     headroom without needing ImageJ/a JVM.
+
+    If the frame already spans most of its native dtype's range, the camera
+    is genuinely using that bit depth and it's kept as-is. Otherwise the
+    frame is quantized down to 8 bits while stretching - the narrowest depth
+    TIFF/imageio support without padding back out to a full byte anyway -
+    since the frame's real, usable dynamic range doesn't need more than that
+    to be represented losslessly.
     '''
-    lo,hi = np.percentile(img,(p_low,p_high))
-    return exposure.rescale_intensity(img,in_range=(lo,hi),out_range=img.dtype.type)
+    native_max = np.iinfo(img.dtype).max
+    lo,hi      = np.percentile(img,(p_low,p_high))
+
+    if (hi-lo) >= full_range_threshold*native_max:
+        out_dtype = img.dtype.type
+    else:
+        out_dtype = np.uint8
+
+    return exposure.rescale_intensity(img,in_range=(lo,hi),out_range=out_dtype)
 
 def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
     '''
@@ -2010,8 +2024,17 @@ class Frame:
         #Maximum of the difference value
         max_diff = np.max(self.img_diff)
         relative_contrast = 1.0*np.max(self.img_diff)/np.max(img_1)
-        
-        if relative_contrast > 0.7 and max_diff > 1000:
+
+        #1000 was calibrated against uint16 (0-65535) frames - scale it to
+        #whatever bit depth the frame actually has, since stretch_contrast()
+        #may have quantized it down to uint8 (0-255)
+        try:
+            native_max = np.iinfo(self.img.dtype).max
+        except ValueError:
+            native_max = 65535
+        max_diff_threshold = 1000.0*native_max/65535.0
+
+        if relative_contrast > 0.7 and max_diff > max_diff_threshold:
             return 'good'
         else:
             return 'bad'
