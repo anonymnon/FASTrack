@@ -1193,7 +1193,11 @@ class Motility:
             print('Warning: ffmpeg not found on PATH - skipping overlay movie generation')
             return
 
-        bg_height,bg_width = self.height,self.width
+        #self.width/self.height are swapped relative to their names
+        #(self.width holds the row count, self.height the column count -
+        #see the assignment at dims_img.shape in read_frame), matching the
+        #convention plot_2D_path_data uses for path_img
+        bg_height,bg_width = self.width,self.height
 
         #Same path filtering/coloring as plot_2D_path_data, so the overlay
         #movie's trajectories match the static paths_2D.png figure
