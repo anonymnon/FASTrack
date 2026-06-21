@@ -114,7 +114,6 @@ import numpy
 import matplotlib.pyplot as py
 import matplotlib.cm as cm
 import scipy.io
-import skimage.io as skio
 
 from numpy import ma
 from scipy.ndimage import label, gaussian_filter, binary_fill_holes, binary_closing, binary_opening
@@ -146,37 +145,6 @@ ZERO    = 1E-100
 def make_N_colors(cmap_name, N):
     cmap = matplotlib.colormaps[cmap_name].resampled(N)
     return cmap(np.arange(N))
-
-def stack_to_tiffs(fname, frame_rate=1.0):
-    '''
-    Read and convert tiff stack file to individual files
-    '''
-    #Find the directory the tiff stack file is located
-    abs_path  = os.path.abspath(fname)
-    head,tail = os.path.split(abs_path)
-    base,ext  = os.path.splitext(tail)
-    
-    #Make the new directory
-    new_dir   = head+'/'+('_'.join(base.split())).replace('#','')
-    if not os.path.isdir(new_dir):
-        os.mkdir(new_dir)
-    
-    #Read all the frames
-    tiff_frames  = skio.imread(fname)
-    num_frames   = len(tiff_frames)
-    
-    f = open(new_dir+'/metadata.txt','w')
-    elapsed_time_ms = 0.0
-    #Write out the individual image files
-    for i in range(num_frames):
-        fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
-        imwrite(fout,tiff_frames[i])
-        #Write elapsed times
-        f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
-        elapsed_time_ms += 1000*1.0/frame_rate
-    f.close()
-
-
 
 #Functions for statistical analysis
 def gaussian(X,amp,mu,stdev):
