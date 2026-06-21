@@ -1208,9 +1208,11 @@ class Motility:
         path_colors_rgba = make_N_colors('Accent',len(filtered_paths))
         path_colors      = [tuple(int(round(c*255)) for c in color[2::-1]) for color in path_colors_rgba]
 
-        #Filament size ratio, mirroring plot_2D_path_data
+        #Trajectory arrows are drawn noticeably thicker than the filament
+        #skeleton (which is only dilated to ~3px) so they remain visible
+        #even where a filament's opaque overlay sits directly on top
         ratio     = self.width/1002.0
-        thickness = max(1,int(round(ratio*0.5)))
+        thickness = max(3,int(round(ratio*3)))
 
         #Group links by the frame their transition completes on, so each
         #arrow is drawn exactly once, the first time its frame comes up
