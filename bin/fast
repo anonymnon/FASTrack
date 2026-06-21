@@ -428,8 +428,8 @@ def main():
                 new_motility.plot_2D_path_data(num_frames_ave, extra_fname=out_path_fname)
             
                 if make_overlay_movie:
-                    #Make a movie of the raw frames overlaid on the paths_2D.png background
-                    new_motility.make_overlay_movie(frame_nos,fps=overlay_movie_fps,extra_fname=out_vl_txt_fname)
+                    #Make a movie of the filament skeletons overlaid on each path's trajectory, drawn progressively in sync with the current frame
+                    new_motility.make_overlay_movie(frame_nos,num_frames_ave,fps=overlay_movie_fps,extra_fname=out_vl_txt_fname)
 
                 if make_movie:
                     #Reconstruct skeleton images from frame links

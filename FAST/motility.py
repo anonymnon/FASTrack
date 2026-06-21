@@ -1174,28 +1174,49 @@ class Motility:
         os.system('rm -f skeletons_*.png')
         os.chdir(cwd)
 
-    def make_overlay_movie(self,frame_nos,alpha=1.0,fps=5,extra_fname=None):
+    def make_overlay_movie(self,frame_nos,num_points,alpha=1.0,fps=5,extra_fname=None):
         '''
         Make a movie of the per-frame filament skeletons overlaid on top of
-        the paths_2D.png background at the given opacity, encoded as an
-        H.264 mp4 so it plays natively on Windows, macOS, and Linux.
-        '''
+        each path's trajectory as it's drawn progressively, frame by frame,
+        encoded as an H.264 mp4 so it plays natively on Windows, macOS, and
+        Linux.
 
-        #Check if paths_2D.png figure exists - if not do not make the movie
-        paths_fname = self.directory+'/paths_2D.png'
-        if not os.path.isfile(paths_fname):
-            return
+        Unlike the static paths_2D.png (which shows every path's complete,
+        all-time trajectory at once), this draws each path's arrows only as
+        the corresponding frame transitions occur, so the displayed filament
+        always sits at the growing tip of its own trajectory instead of
+        appearing next to arrows that represent other points in time.
+        '''
 
         #ffmpeg is required to encode the frame sequence into a movie
         if shutil.which('ffmpeg') is None:
             print('Warning: ffmpeg not found on PATH - skipping overlay movie generation')
             return
 
-        background = cv2.imread(paths_fname)
-        if background is None:
+        bg_height,bg_width = self.height,self.width
+
+        #Same path filtering/coloring as plot_2D_path_data, so the overlay
+        #movie's trajectories match the static paths_2D.png figure
+        filtered_paths = list(filter(lambda x:len(x.links) >= num_points,self.paths))
+        if len(filtered_paths) == 0:
             return
 
-        bg_height,bg_width = background.shape[:2]
+        path_colors_rgba = make_N_colors('Accent',len(filtered_paths))
+        path_colors      = [tuple(int(round(c*255)) for c in color[2::-1]) for color in path_colors_rgba]
+
+        #Filament size ratio, mirroring plot_2D_path_data
+        ratio     = self.width/1002.0
+        thickness = max(1,int(round(ratio*0.5)))
+
+        #Group links by the frame their transition completes on, so each
+        #arrow is drawn exactly once, the first time its frame comes up
+        links_by_frame2 = {}
+        for path_idx,path in enumerate(filtered_paths):
+            for link in path.links:
+                links_by_frame2.setdefault(link.frame2_no,[]).append((path_idx,link))
+
+        #Persistent canvas that arrows accumulate onto across frames
+        canvas = 255*np.ones((bg_height,bg_width,3),dtype=np.uint8)
 
         #Temporary directory to hold the blended frames before encoding
         tmp_dir = self.directory+'/overlay_tmp'
@@ -1204,10 +1225,19 @@ class Motility:
         os.makedirs(tmp_dir)
 
         frame_count = 0
-        for frame_no in frame_nos:
+        for frame_no in sorted(frame_nos):
             filXYs_fname = self.directory+'/filXYs%03d.npy'%frame_no
             if not os.path.isfile(filXYs_fname):
                 continue
+
+            #Draw any arrows whose transition completes on this frame onto
+            #the persistent canvas before compositing the filaments, so the
+            #trajectory grows in sync with the movie instead of being shown
+            #in full from frame one
+            for path_idx,link in links_by_frame2.get(frame_no,[]):
+                pt1 = (int(round(link.filament2_midpoint[1])),int(round(link.filament2_midpoint[0])))
+                pt2 = (int(round(link.filament1_midpoint[1])),int(round(link.filament1_midpoint[0])))
+                cv2.arrowedLine(canvas,pt1,pt2,path_colors[path_idx],thickness,tipLength=0.3)
 
             #Draw the actual detected filament-skeleton pixels (the same
             #contour data the paths/trajectories are built from) rather than
@@ -1232,7 +1262,7 @@ class Motility:
 
             filament_alpha = alpha*(filament_mask.astype(np.float32)/255.0)
             filament_alpha = cv2.merge([filament_alpha,filament_alpha,filament_alpha])
-            blended         = (background.astype(np.float32)*(1.0-filament_alpha)).astype(np.uint8)
+            blended         = (canvas.astype(np.float32)*(1.0-filament_alpha)).astype(np.uint8)
             cv2.imwrite(tmp_dir+'/frame_%04d.png'%frame_count,blended)
             frame_count += 1
 
