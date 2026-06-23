@@ -162,10 +162,21 @@ def main():
             tif_files    = list(filter(lambda x:x[-4:] == '.tif',files))
             if len(tif_files) == 0:
                 continue
-        
-            #Determine the naming scheme of the tif files
+
+            #A leaf directory with no subfolders is assumed to hold already-
+            #exploded frames named img_000000NNN__TAIL.tif. If stack2tifs
+            #skipped a stack file (e.g. below its -s size threshold), its
+            #raw, un-exploded N_MMStack_Pos0.ome.tif sits alone here instead -
+            #skip it rather than crashing trying to parse a frame number out
+            #of its filename
             first_tif    = tif_files[0]
-            tail_tif     = first_tif.split('_')[2]
+            name_parts   = first_tif.split('_')
+            if len(name_parts) < 3 or not name_parts[1].isdigit():
+                print('Skipping %s - tif files here are not exploded frames (run stack2tifs first)'%root)
+                continue
+
+            #Determine the naming scheme of the tif files
+            tail_tif     = name_parts[2]
         
             #Remove all the spaces in the directories as it causes problems in analysis  
             head,tail_dir= os.path.split(root)
