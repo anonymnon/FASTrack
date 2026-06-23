@@ -70,4 +70,11 @@ for root, subFolders, files in os.walk(main_dir):
         if already_exploded and overwrite:
             print("Exploded frames already exist in {} - overwriting {}".format(exploded_dir,fname))
 
-        motility.stack_to_tiffs_py3(fname,frame_rate,extract_metadata)
+        #Report which file failed and keep going, rather than letting one
+        #bad/unexpected stack file (e.g. corrupt, truncated, or an
+        #unexpected format) abort the whole batch with a bare traceback
+        try:
+            motility.stack_to_tiffs_py3(fname,frame_rate,extract_metadata)
+        except Exception as e:
+            print("Error exploding {}: {} - skipping".format(fname,e))
+            continue

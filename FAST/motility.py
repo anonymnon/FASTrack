@@ -72,8 +72,12 @@ def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
         os.mkdir(new_dir)
     print("Processing {}".format(new_dir))
 
-    #Read all the frames
+    #Read all the frames. A single-page tif comes back as a bare 2D array
+    #rather than a list/stack of frames - wrap it so len()/indexing below
+    #treat it as one frame instead of silently iterating over its rows
     tiff_frames  = read_multipage(fname)
+    if tiff_frames.ndim == 2:
+        tiff_frames = tiff_frames[np.newaxis,...]
     num_frames   = len(tiff_frames)
     
     #Write out the individual image files
