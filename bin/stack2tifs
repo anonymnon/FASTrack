@@ -50,7 +50,12 @@ if main_dir == None or not os.path.isdir(main_dir):
 Recurse through each data directory
 '''
 for root, subFolders, files in os.walk(main_dir):
-    tif_files = list(filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif', files))
+    #Exclude files already named with the img_NNN__TAIL.tif convention that
+    #stack_to_tiffs_py3 writes - without this, lowering -s below an
+    #individual exploded frame's size makes the walk descend into a stack's
+    #own exploded-frames subfolder and try to re-explode each single frame
+    #as if it were itself a multi-frame stack
+    tif_files = list(filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.tif' and not f.startswith('img_'), files))
     for tif_file in tif_files:
         fname = root+'/'+tif_file
 
