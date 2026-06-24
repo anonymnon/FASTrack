@@ -4,6 +4,22 @@
 #Tural Aksel
 import sys
 import os
+
+#fast/cli_fast.py runs one frame per multiprocessing worker process, sized
+#to os.cpu_count(). Without this, numpy's BLAS backend and OpenCV's
+#internal parallel_for_ each also default to using every logical core
+#*inside* every one of those worker processes, so the two layers of
+#parallelism multiply (e.g. 32 worker processes x 32 internal threads on a
+#32-thread CPU) instead of adding - the resulting oversubscription thrashes
+#the scheduler and makes more cores/threads perform *worse*, which is
+#especially visible on Windows. These must be set before numpy is imported
+#below, since the underlying BLAS library reads them once at load time.
+os.environ.setdefault('OMP_NUM_THREADS','1')
+os.environ.setdefault('OPENBLAS_NUM_THREADS','1')
+os.environ.setdefault('MKL_NUM_THREADS','1')
+os.environ.setdefault('VECLIB_MAXIMUM_THREADS','1')
+os.environ.setdefault('NUMEXPR_NUM_THREADS','1')
+
 import shutil
 import shlex
 import matplotlib
@@ -147,6 +163,7 @@ from scipy.stats    import kde
 
 import cv2
 cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)    #Suppress noisy TIFF metadata warnings (e.g. unrecognized MicroManager tags)
+cv2.setNumThreads(1)    #OpenCV's own internal thread pool defaults to every logical core and doesn't reliably respect OMP_NUM_THREADS - see note on the env vars above
 
 #Global variables/structures
 sqr_1   = footprint_rectangle((1,1))    #Square with a radius of 1 pixel
