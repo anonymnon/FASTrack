@@ -81,8 +81,6 @@ def main():
     parser.add_argument('-lascore'  ,default = 1.0, type=float, help='log-area score cutoff value to make the connections between filaments - advanced option (Default:1.0)')
     parser.add_argument('-dlascore' ,default = 0.5, type=float, help='difference-log-area score cutoff value to make the connections between filaments - advanced option (Default:0.5)')
 
-    parser.add_argument('-v'    ,action  = 'store_true'  ,default=False,  help='verbose output from GNU parallel for debugging')
-
     args = parser.parse_args()
     args_dict = vars(args)
     parser.print_help()
@@ -111,7 +109,6 @@ def main():
     #-maxd/-minv scale automatically with -px unless the user explicitly overrides them
     max_velocity         = args_dict['maxd'] if args_dict['maxd'] is not None else 10*pixel_size
     min_velocity         = args_dict['minv'] if args_dict['minv'] is not None else pixel_size
-    verbose              = args_dict['v'] #2025-12-22 added since it appeared to not in use
 
     #Hard-coded parameters
     overlap_score_cutoff        = args_dict['oscore']
