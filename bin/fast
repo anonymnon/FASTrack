@@ -391,6 +391,13 @@ def main():
             frame_nos = [int(line.strip()) for line in f.readlines()]
             f.close()
 
+            #A single frame can't be linked to anything, so no paths or
+            #velocities can ever come out of it - skip it before paying for
+            #the (often slow) per-frame filament extraction below
+            if len(frame_nos) < 2:
+                print('Only %d frame(s) in %s - skipping (need at least 2 frames to calculate velocities)'%(len(frame_nos),root))
+                continue
+
             #Parallel-execution of filament extraction of all the frames,
             #using the long-lived worker pool created above
             frame_args = [(final_folder,'img_000000',tail_tif,no,force_analysis) for no in frame_nos]
