@@ -21,7 +21,7 @@ os.environ.setdefault('VECLIB_MAXIMUM_THREADS','1')
 os.environ.setdefault('NUMEXPR_NUM_THREADS','1')
 
 import shutil
-import shlex
+import subprocess
 import matplotlib
 
 #Detect if running without display
@@ -1311,14 +1311,16 @@ class Motility:
             shutil.rmtree(tmp_dir)
             return
 
-        #Encode the blended frame sequence into a widely-compatible H.264 mp4
-        out_movie      = self.directory+'/overlay_movie.mp4'
-        ffmpeg_command = 'ffmpeg -y -framerate %d -i %s -c:v libx264 -pix_fmt yuv420p %s'%(fps,shlex.quote(tmp_dir+'/frame_%04d.png'),shlex.quote(out_movie))
-        os.system(ffmpeg_command)
+        #Encode the blended frame sequence into a widely-compatible H.264 mp4.
+        #Passed as an argument list (no shell) rather than a shell command
+        #string, so paths with spaces work correctly and identically on
+        #Windows (cmd.exe) and POSIX shells without manual quoting
+        out_movie = self.directory+'/overlay_movie.mp4'
+        subprocess.run(['ffmpeg','-y','-framerate',str(fps),'-i',tmp_dir+'/frame_%04d.png','-c:v','libx264','-pix_fmt','yuv420p',out_movie])
 
         #Copy the movie to the output directory
         if not extra_fname == None:
-            os.system('cp '+shlex.quote(out_movie)+' '+shlex.quote(extra_fname+'overlay_movie.mp4'))
+            shutil.copy(out_movie,extra_fname+'overlay_movie.mp4')
 
         shutil.rmtree(tmp_dir)
 
@@ -1390,14 +1392,16 @@ class Motility:
             shutil.rmtree(tmp_dir)
             return
 
-        #Encode the rendered frame sequence into a widely-compatible H.264 mp4
-        out_movie      = self.directory+'/skeleton_movie.mp4'
-        ffmpeg_command = 'ffmpeg -y -framerate %d -i %s -c:v libx264 -pix_fmt yuv420p %s'%(fps,shlex.quote(tmp_dir+'/frame_%04d.png'),shlex.quote(out_movie))
-        os.system(ffmpeg_command)
+        #Encode the rendered frame sequence into a widely-compatible H.264 mp4.
+        #Passed as an argument list (no shell) rather than a shell command
+        #string, so paths with spaces work correctly and identically on
+        #Windows (cmd.exe) and POSIX shells without manual quoting
+        out_movie = self.directory+'/skeleton_movie.mp4'
+        subprocess.run(['ffmpeg','-y','-framerate',str(fps),'-i',tmp_dir+'/frame_%04d.png','-c:v','libx264','-pix_fmt','yuv420p',out_movie])
 
         #Copy the movie to the output directory
         if not extra_fname == None:
-            os.system('cp '+shlex.quote(out_movie)+' '+shlex.quote(extra_fname+'skeleton_movie.mp4'))
+            shutil.copy(out_movie,extra_fname+'skeleton_movie.mp4')
 
         shutil.rmtree(tmp_dir)
 
