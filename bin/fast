@@ -62,6 +62,8 @@ def main():
     parser.add_argument('-m'    ,action  = 'store_true'  ,default=False, help='make filament tracking movie')
     parser.add_argument('-om'   ,action  = 'store_true'  ,default=False, help='make movie of raw frames overlaid on the paths_2D.png background')
     parser.add_argument('-ofps' ,default = 5,        type=int,   help='frame rate for the overlay movie (Default:5)')
+    parser.add_argument('-sm'   ,action  = 'store_true'  ,default=False, help='make movie of skeletonized filaments only (no trajectories), with stuck filaments shown in red')
+    parser.add_argument('-sfps' ,default = 5,        type=int,   help='frame rate for the skeleton movie (Default:5)')
 
     parser.add_argument('-p'    ,default = 5,       type=int,   help='minimum length for the paths to be analyzed (Default:5)')
     parser.add_argument('-n'    ,default = 5,       type=int,   help='number of consecutive frames for averaging (Default:5)')
@@ -97,6 +99,8 @@ def main():
     make_movie           = args_dict['m']
     make_overlay_movie   = args_dict['om']
     overlay_movie_fps    = args_dict['ofps']
+    make_skeleton_movie  = args_dict['sm']
+    skeleton_movie_fps   = args_dict['sfps']
     min_path_length      = args_dict['p']
     percent_tolerance    = args_dict['pt']
     plot_ymax            = args_dict['ymax']
@@ -117,13 +121,13 @@ def main():
     #Per-movie rows for the summary CSV, plus the user-modifiable parameter
     #values that get appended as columns to every row
     summary_rows  = []
-    param_columns = ['px','p','n','pt','ymax','xmax','cl','fx','maxd','minv','oscore','lascore','dlascore','ofps','m','om','f','r']
+    param_columns = ['px','p','n','pt','ymax','xmax','cl','fx','maxd','minv','oscore','lascore','dlascore','ofps','sfps','m','om','sm','f','r']
     param_values  = {'px':pixel_size, 'p':min_path_length, 'n':num_frames_ave, 'pt':percent_tolerance,
                       'ymax':plot_ymax, 'xmax':plot_xmax, 'cl':maxvel_color, 'fx':fit_function,
                       'maxd':max_velocity, 'minv':min_velocity, 'oscore':overlap_score_cutoff,
                       'lascore':log_area_score_cutoff, 'dlascore':diff_log_area_score_cutoff,
-                      'ofps':overlay_movie_fps, 'm':make_movie, 'om':make_overlay_movie,
-                      'f':force_analysis, 'r':recalculate}
+                      'ofps':overlay_movie_fps, 'sfps':skeleton_movie_fps, 'm':make_movie, 'om':make_overlay_movie,
+                      'sm':make_skeleton_movie, 'f':force_analysis, 'r':recalculate}
 
 
     #Check if the last character is '/' - if yes, remove it
@@ -448,6 +452,10 @@ def main():
                 if make_overlay_movie:
                     #Make a movie of the filament skeletons overlaid on each path's trajectory, drawn progressively in sync with the current frame
                     new_motility.make_overlay_movie(frame_nos,num_frames_ave,fps=overlay_movie_fps,extra_fname=out_vl_txt_fname)
+
+                if make_skeleton_movie:
+                    #Make a movie of just the filament skeletons, with stuck filaments shown in red
+                    new_motility.make_skeleton_movie(frame_nos,fps=skeleton_movie_fps,extra_fname=out_vl_txt_fname)
 
                 if make_movie:
                     #Reconstruct skeleton images from frame links

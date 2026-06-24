@@ -1305,6 +1305,85 @@ class Motility:
 
         shutil.rmtree(tmp_dir)
 
+    def make_skeleton_movie(self,frame_nos,fps=5,extra_fname=None):
+        '''
+        Make a movie of the per-frame filament skeletons only (no
+        trajectory arrows), with filaments belonging to a path classified
+        as stuck (path.stuck == True) drawn in red for every frame that
+        path spans, and all other filaments drawn in the default color.
+        '''
+
+        #ffmpeg is required to encode the frame sequence into a movie
+        if shutil.which('ffmpeg') is None:
+            print('Warning: ffmpeg not found on PATH - skipping skeleton movie generation')
+            return
+
+        #Same swapped-name convention as make_overlay_movie, so this movie
+        #is rendered at the same resolution
+        bg_height,bg_width = self.width,self.height
+
+        #filXY entries have no path/link identity of their own, but each
+        #link's filament1_midpoint/filament2_midpoint (at frame1_no/
+        #frame2_no respectively) is the same midpoint saved into that
+        #frame's filXYs - so build a per-frame lookup of stuck-path
+        #midpoints to identify, by midpoint match, which filXY entries
+        #belong to a stuck path
+        stuck_midpoints_by_frame = {}
+        for path in self.paths:
+            if not path.stuck:
+                continue
+            for link in path.links:
+                mp1 = (int(round(link.filament1_midpoint[0])),int(round(link.filament1_midpoint[1])))
+                mp2 = (int(round(link.filament2_midpoint[0])),int(round(link.filament2_midpoint[1])))
+                stuck_midpoints_by_frame.setdefault(link.frame1_no,set()).add(mp1)
+                stuck_midpoints_by_frame.setdefault(link.frame2_no,set()).add(mp2)
+
+        #Temporary directory to hold the rendered frames before encoding
+        tmp_dir = self.directory+'/skeleton_tmp'
+        if os.path.isdir(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        os.makedirs(tmp_dir)
+
+        frame_count = 0
+        for frame_no in sorted(frame_nos):
+            filXYs_fname = self.directory+'/filXYs%03d.npy'%frame_no
+            if not os.path.isfile(filXYs_fname):
+                continue
+
+            filXYs       = np.load(filXYs_fname,allow_pickle=True)
+            stuck_points = stuck_midpoints_by_frame.get(frame_no,set())
+
+            canvas = 255*np.ones((bg_height,bg_width,3),dtype=np.uint8)
+            for filXY,width,density,midpoint in filXYs:
+                rows = np.clip(filXY[:,0],0,bg_height-1)
+                cols = np.clip(filXY[:,1],0,bg_width-1)
+
+                mp = (int(round(midpoint[0])),int(round(midpoint[1])))
+                color = (0,0,255) if mp in stuck_points else (0,0,0)
+
+                mask = np.zeros((bg_height,bg_width),dtype=np.uint8)
+                mask[rows,cols] = 255
+                mask = cv2.dilate(mask,np.ones((3,3),np.uint8))
+                canvas[mask > 0] = color
+
+            cv2.imwrite(tmp_dir+'/frame_%04d.png'%frame_count,canvas)
+            frame_count += 1
+
+        if frame_count == 0:
+            shutil.rmtree(tmp_dir)
+            return
+
+        #Encode the rendered frame sequence into a widely-compatible H.264 mp4
+        out_movie      = self.directory+'/skeleton_movie.mp4'
+        ffmpeg_command = 'ffmpeg -y -framerate %d -i %s -c:v libx264 -pix_fmt yuv420p %s'%(fps,shlex.quote(tmp_dir+'/frame_%04d.png'),shlex.quote(out_movie))
+        os.system(ffmpeg_command)
+
+        #Copy the movie to the output directory
+        if not extra_fname == None:
+            os.system('cp '+shlex.quote(out_movie)+' '+shlex.quote(extra_fname+'skeleton_movie.mp4'))
+
+        shutil.rmtree(tmp_dir)
+
     def read_frame(self,num_frame,force_read = False):
         '''
         Read single frame
