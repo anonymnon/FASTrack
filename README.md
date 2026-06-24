@@ -1,4 +1,4 @@
-# FAST v2.0.0-alpha.1: Fast Automated Spud Tracker
+# FAST v2.0.0: Fast Automated Spud Tracker
 
 Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 2015. Ensemble force changes that result from human cardiac myosin mutations and a small molecule effector.**][1]
 
@@ -19,7 +19,11 @@ This fork started as a minor update to Tural Aksel's original FASTrack program t
 - Various Python 3 compatibility fixes (integer division, deprecated `skimage`/`numpy` APIs, ragged `np.save`/`np.load` array handling, etc.).
 - New movie-overlay rendering (raw frames blended onto the `paths_2D.png` tracking background, encoded as a cross-platform `.mp4` via `ffmpeg`) and pixel-exact frame sizing so tracking overlays line up with the raw `.tif` frames.
 - Removal of the ImageJ-based contrast/threshold preprocessing step from `stack2tifs` (formerly `stack2tifspy3`) in favor of a pure-Python percentile contrast stretch. FAST's own entropy-island-based segmentation and per-filament skeletonization (in `FAST/motility.py`) already does a far better job of finding filaments when given properly contrast-stretched raw frames than the old ImageJ enhance-contrast/threshold/mask pipeline did - and dropping ImageJ also means FAST no longer needs a JVM, Java, or Maven installed at all.
-- General dependency, packaging, and warning/noise cleanup.
+- Auto-detection of the optimal frame bit depth in `stack2tifs`: a frame that already uses most of its native dtype's intensity range keeps that bit depth, otherwise it's quantized down to 8-bit while contrast-stretching, since the usable dynamic range doesn't need more than that to be represented losslessly.
+- A `-sm`/`-sfps` option to generate a movie of just the skeletonized filaments (no trajectory arrows), with filaments belonging to a path classified as stuck rendered in red for every frame that path spans.
+- `fast` now skips leaf directories with fewer than 2 frames instead of stalling on them, since a single frame can never produce a link, path, or velocity.
+- Fixed a Windows packaging bug where `fast`/`lima`/`stack2tifs` were registered via setuptools' legacy `scripts=` keyword, which silently failed to create real, runnable `.exe` commands on Windows (Windows has no shebang support). They're now registered as `console_scripts` entry points instead.
+- General dependency, packaging, and warning/noise cleanup, including removing the unused legacy `bin/motility.py` script and trimming unused Python dependencies (`networkx`, `PyWavelets`).
 
 **No changes were made to the core scientific calculations/algorithms** beyond the bug fixes noted above, which corrected unintended deviations from the original scoring logic rather than introducing new analysis behavior. **You should still cite the original paper by Tural Aksel** (see citation above) if you use this software or its outputs.
 
@@ -150,7 +154,7 @@ If you'd rather have your installed environment automatically reflect any source
 
 After installation, don't move the `FASTrack` directory to a different location without reinstalling.
 
-**Windows users upgrading from an older FASTrack install:** versions prior to v2.0.0-alpha.1 registered `fast`/`lima`/`stack2tifs` using a packaging method that didn't reliably create a working command on Windows. If you previously worked around this, or have a stale install lying around, run `python -m pip install --force-reinstall --no-deps .` to pick up the fix.
+**Windows users upgrading from an older FASTrack install:** versions prior to v2.0.0 registered `fast`/`lima`/`stack2tifs` using a packaging method that didn't reliably create a working command on Windows. If you previously worked around this, or have a stale install lying around, run `python -m pip install --force-reinstall --no-deps .` to pick up the fix.
 
 ## Preparation of movie files
 
@@ -197,6 +201,8 @@ After installation, don't move the `FASTrack` directory to a different location 
     - ```-m```: Generate a legacy frame-by-frame tracking movie (`.avi`, via `avconv`) showing reconstructed skeletons and motion arrows.
     - ```-om```: Generate an overlay tracking movie (`.mp4`, via `ffmpeg`) compositing each raw frame onto the `paths_2D.png` tracking background. Filament pixels are rendered black and opaque (darkened proportionally to their brightness), while non-filament background pixels are left fully transparent, so the path-trajectory arrows underneath remain clearly visible.
     - ```-ofps FPS```: Frame rate for the `-om` overlay movie **(Default:5)**.
+    - ```-sm```: Generate a movie of just the skeletonized filaments (`.mp4`, via `ffmpeg`), with no trajectory arrows. Filaments belonging to a path classified as stuck (see `-minv`) are drawn in red for every frame that path spans; all other filaments are drawn in the default color.
+    - ```-sfps FPS```: Frame rate for the `-sm` skeleton movie **(Default:5)**.
     - ```-r```: Recalculate velocities from previously-saved per-frame filament data, skipping image re-processing (fast iteration on a new parameter set).
     - ```-f```: Force a full re-analysis from the raw images, ignoring any cached per-frame/link data.
 
@@ -242,7 +248,7 @@ After installation, don't move the `FASTrack` directory to a different location 
 
 - In addition, mean and standard error of mean (SEM) for the velocity parameters are stored in **MEAN_values.txt** and **SEM_values.txt** in **combined** folder.
 
-- A **summary.csv** file is also generated for each run, with one row per processed movie (labeled by its **LEVEL2_LEVEL3_LEVEL4** path, e.g. ```CaMy1_Rep1_1_1_MMStack_Pos0.ome```) and columns for ```TOP5%``` velocity, filtered/unfiltered ```MVEL```, percent of stuck filaments, mean/standard-deviation/skewness of the filtered filament lengths (```FIL-LENGTH```), and every user-adjustable parameter value used for that run (```-px```, ```-p```, ```-n```, ```-pt```, ```-ymax```, ```-xmax```, ```-cl```, ```-fx```, ```-maxd```, ```-minv```, ```-oscore```, ```-lascore```, ```-dlascore```, ```-ofps```, ```-m```, ```-om```, ```-f```, ```-r```). A copy is written both to the **LEVEL1** input directory and to the top of the corresponding **outputs/LEVEL1** (or ```outputs/LEVEL1-2```, etc.) folder.
+- A **summary.csv** file is also generated for each run, with one row per processed movie (labeled by its **LEVEL2_LEVEL3_LEVEL4** path, e.g. ```CaMy1_Rep1_1_1_MMStack_Pos0.ome```) and columns for ```TOP5%``` velocity, filtered/unfiltered ```MVEL```, percent of stuck filaments, mean/standard-deviation/skewness of the filtered filament lengths (```FIL-LENGTH```), and every user-adjustable parameter value used for that run (```-px```, ```-p```, ```-n```, ```-pt```, ```-ymax```, ```-xmax```, ```-cl```, ```-fx```, ```-maxd```, ```-minv```, ```-oscore```, ```-lascore```, ```-dlascore```, ```-ofps```, ```-sfps```, ```-m```, ```-om```, ```-sm```, ```-f```, ```-r```). A copy is written both to the **LEVEL1** input directory and to the top of the corresponding **outputs/LEVEL1** (or ```outputs/LEVEL1-2```, etc.) folder.
 
 ## Loaded in vitro motility analysis
 
