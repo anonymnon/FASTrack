@@ -10,7 +10,7 @@ Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 20
 
 ## Foreword
 
-This fork started as a minor update to Tural Aksel's original FASTrack program to fix issues running it on modern Ubuntu, plus a new image-import script (**stack2tifspy3**, see below). Since then it has been substantially modernized using **Claude Code** (Anthropic's AI coding assistant) as a development tool. Changes made with Claude Code's help include:
+This fork started as a minor update to Tural Aksel's original FASTrack program to fix issues running it on modern Ubuntu, plus a new image-import script (**stack2tifspy3**, since merged into **stack2tifs**, see below). Since then it has been substantially modernized using **Claude Code** (Anthropic's AI coding assistant) as a development tool. Changes made with Claude Code's help include:
 
 - A full port of the codebase from Python 2 to Python 3 (the original program targeted Python 2 and required a Python 2/3 split toolchain).
 - Replacement of the per-frame GNU-parallel subprocess pipeline with a persistent `multiprocessing` worker pool for faster, simpler parallel frame processing (GNU `parallel` is no longer a required dependency).
@@ -18,6 +18,7 @@ This fork started as a minor update to Tural Aksel's original FASTrack program t
 - A typo fix so the `-dlascore` command-line option actually reaches the underlying analysis code (previously silently ignored).
 - Various Python 3 compatibility fixes (integer division, deprecated `skimage`/`numpy` APIs, ragged `np.save`/`np.load` array handling, etc.).
 - New movie-overlay rendering (raw frames blended onto the `paths_2D.png` tracking background, encoded as a cross-platform `.mp4` via `ffmpeg`) and pixel-exact frame sizing so tracking overlays line up with the raw `.tif` frames.
+- Removed the Java/Maven/ImageJ (`pyimagej`/`scyjava`) dependency: `stack2tifspy3`'s per-frame auto contrast/threshold/median-filter preprocessing was redundant with (and could conflict with) `fast`'s own adaptive Otsu thresholding during filament extraction, so `stack2tifspy3` was merged into the simpler, dependency-free `stack2tifs`.
 - General dependency, packaging, and warning/noise cleanup.
 
 **No changes were made to the core scientific calculations/algorithms** beyond the bug fixes noted above, which corrected unintended deviations from the original scoring logic rather than introducing new analysis behavior. **You should still cite the original paper by Tural Aksel** (see citation above) if you use this software or its outputs.
@@ -30,8 +31,6 @@ Most Python dependencies install automatically via `pip` (see `setup.py` / `requ
 
 | Dependency | Why it's needed | Notes |
 |---|---|---|
-| **Java JDK (8 or 11)** | Required by `pyimagej`/`scyjava` to run ImageJ macros, used by `stack2tifspy3` for auto contrast/threshold adjustment | Not installable via pip; install a JDK distribution for your OS |
-| **Maven** | Used by `pyimagej` to fetch ImageJ/Fiji components on first run | Needs internet access the first time it runs |
 | **ffmpeg** | Used to encode the `-om` overlay tracking movie (`.mp4`) | System binary, not a Python package |
 | **Tk / python3-tk** | Used as the GUI backend for `matplotlib` when a display is available | Often bundled with Python on Windows/macOS, but frequently missing on Linux |
 | **avconv / libav-tools** | Used by the legacy `-m` skeleton tracking movie (`.avi`) feature | Largely obsolete; most modern systems no longer ship `avconv`. If you only need tracking movies, prefer `-om` (ffmpeg-based) instead |
@@ -58,7 +57,6 @@ cd FASTrack
    ```bash
    sudo apt update
    sudo apt install python3-dev python3-venv python3-tk libffi-dev build-essential
-   sudo apt install openjdk-11-jdk maven
    sudo apt install ffmpeg
    sudo apt install ttf-mscorefonts-installer   # optional, for matplotlib font rendering
    ```
@@ -84,9 +82,8 @@ To use FAST again later, just re-activate the virtual environment: `source ~/.ve
 1. Install [Homebrew](https://brew.sh/) if you don't already have it.
 2. Install the manual dependencies:
    ```bash
-   brew install python@3.11 openjdk@11 maven ffmpeg
+   brew install python@3.11 ffmpeg
    ```
-   Make sure the installed JDK is on your `PATH` (Homebrew will print instructions, typically something like `export PATH="/opt/homebrew/opt/openjdk@11/bin:$PATH"`).
 3. Create and activate a virtual environment:
    ```bash
    python3 -m venv ~/.venvs/FAST
@@ -102,7 +99,7 @@ Tk is bundled with the python.org/Homebrew Python builds, so a separate Tk insta
 
 ### Windows
 
-Using a `conda`/Miniconda environment is the most reliable approach on Windows, since it can manage the Java dependency for you alongside Python.
+Using a `conda`/Miniconda environment is the most reliable approach on Windows, since it can manage `ffmpeg` for you alongside Python.
 
 1. Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda.
 2. Open an "Anaconda Prompt" and create an environment:
@@ -110,9 +107,9 @@ Using a `conda`/Miniconda environment is the most reliable approach on Windows, 
    conda create -n FAST python=3.11
    conda activate FAST
    ```
-3. Install Java and Maven into the same environment via conda-forge (avoids a separate manual JDK install):
+3. Install ffmpeg into the same environment via conda-forge:
    ```bat
-   conda install -c conda-forge openjdk=11 maven ffmpeg
+   conda install -c conda-forge ffmpeg
    ```
 4. From the cloned repository directory, install FAST:
    ```bat
@@ -120,7 +117,7 @@ Using a `conda`/Miniconda environment is the most reliable approach on Windows, 
    pip install .
    ```
 
-Alternatively, if you prefer plain `venv` instead of conda on Windows, install Python from [python.org](https://www.python.org/) (Tk is included by default), separately install a JDK (e.g. [Eclipse Temurin](https://adoptium.net/)) and [Maven](https://maven.apache.org/download.cgi), and [ffmpeg](https://ffmpeg.org/download.html#build-windows), making sure each is added to your `PATH`. Then:
+Alternatively, if you prefer plain `venv` instead of conda on Windows, install Python from [python.org](https://www.python.org/) (Tk is included by default) and [ffmpeg](https://ffmpeg.org/download.html#build-windows), making sure it's added to your `PATH`. Then:
 ```bat
 python -m venv %USERPROFILE%\venvs\FAST
 %USERPROFILE%\venvs\FAST\Scripts\activate
@@ -142,20 +139,15 @@ After installation, don't move the `FASTrack` directory to a different location 
 
 - **fast** only analyzes movie tif files recorded using [micro-manager](https://www.micro-manager.org/). For movies recorded using other software, first save the movie as tiff stacks and convert the stacks to micro-manager output format using one of the stack-conversion scripts below.
 
-- **stack2tifs** is the original/legacy stack-splitting script. It is kept for backwards compatibility but is no longer the recommended path.
+- **stack2tifs** takes a directory containing an image stack, explodes the stack into individual frames, and writes frames with names compatible with the rest of the FAST toolchain. If the source directory contains a `*_metadata.txt` file (where `*` matches the image's base filename) and the `-t` flag is given, elapsed frame times are extracted from that file and written into a FAST-compatible metadata file. If no such metadata file exists, omit `-t` and the program will instead generate elapsed times from the `-f` frame-rate argument.
    ```
-   stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND
-   ```
-
-- **stack2tifspy3** is the new, recommended script (added 7/27/2021, modernized further since). The original `stack2tifs` did not reliably handle all files captured from Micro-Manager; `stack2tifspy3` takes a directory containing an image stack, explodes the stack into individual frames, auto-enhances each frame using ImageJ (contrast/threshold/median filtering), and writes frames with names compatible with the rest of the FAST toolchain. If the source directory contains a `*_metadata.txt` file (where `*` matches the image's base filename) and the `-t` flag is given, elapsed frame times are extracted from that file and written into a FAST-compatible metadata file. If no such metadata file exists, omit `-t` and the program will instead generate elapsed times from the `-f` frame-rate argument. Since FAST now runs entirely under Python 3, `stack2tifspy3` and the rest of the toolchain (`fast`, `lima`, `stack2tifs`) all run from the same environment - there is no longer a Python 2/3 split.
-   ```
-   stack2tifspy3 -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE -o OVERWRITE
+   stack2tifs -d DIRECTORY -f FRAMERATE -s SIZELOWERBOUND -t USE_METADATA_FILE -o OVERWRITE
    ```
 
 - **DIRECTORY** is the top directory in which tiff stacks are stored.
 - **FRAMERATE** is the frame rate of the movies in frames per second **(Default: 1)**. Process movies with different frame rates separately.
 - **SIZELOWERBOUND** is the lower bound for the size (Mbytes) of the tiff stacks to be converted into individual tiffs **(Default: 6)**. Only tiff stacks bigger than SIZELOWERBOUND are processed.
-- **OVERWRITE**: if a stack has already been exploded into individual frames in a previous run, `stack2tifspy3` skips it and prints a notice by default. Pass `-o yes` to force re-exploding/overwriting those frames instead (also prints a notice). **(Default: no)**.
+- **OVERWRITE**: if a stack has already been exploded into individual frames in a previous run, `stack2tifs` skips it and prints a notice by default. Pass `-o yes` to force re-exploding/overwriting those frames instead (also prints a notice). **(Default: no)**.
 
 ## Analysis of movies using FAST
 
@@ -216,7 +208,7 @@ After installation, don't move the `FASTrack` directory to a different location 
 
 - To abort execution, press ```CTRL+C``` on terminal.
 
-- Please check the examples in **examples/unloaded_motility** to get familiar with **stack2tifs**/**stack2tifspy3** and **fast**.
+- Please check the examples in **examples/unloaded_motility** to get familiar with **stack2tifs** and **fast**.
 
 ## Result descriptions
 

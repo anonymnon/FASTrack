@@ -17,116 +17,15 @@ else:
 import re
 
 from imageio import imwrite
-from importlib import import_module
-
-from tifffile import imread as read_multipage
-
-#Lazily initialized ImageJ instance, only needed by stack_to_tiffs_py3
-_ij = None
 
 def get_exploded_dir(fname):
     '''
-    Directory that stack_to_tiffs_py3 explodes the given stack tif file into.
+    Directory that stack_to_tiffs explodes the given stack tif file into.
     '''
     abs_path  = os.path.abspath(fname)
     head,tail = os.path.split(abs_path)
     base,ext  = os.path.splitext(tail)
     return head+os.sep+('_'.join(base.split())).replace('#','')
-
-def stack_to_tiffs_py3(fname,frame_rate=1.0,extract_metadata=False):
-    '''
-    Read and convert tiff stack file to individual files
-    Imports ImageJ on execution of this function to prevent loading
-        java when running the main program
-    '''
-    global _ij
-    if _ij is None:
-        ij_module = import_module('imagej')
-        _ij = ij_module.init()
-    ij = _ij
-
-    #Find the directory the tiff stack file is located
-    abs_path  = os.path.abspath(fname)
-    head,tail = os.path.split(abs_path)
-
-    #Make the new directory
-    new_dir   = get_exploded_dir(fname)
-    if not os.path.isdir(new_dir):
-        os.mkdir(new_dir)
-    print("Processing {}".format(new_dir))
-
-    #Read all the frames
-    tiff_frames  = read_multipage(fname)
-    num_frames   = len(tiff_frames)
-    
-    #Write out the individual image files
-    #If using default frame rate of 1 fps or user defines particular frame rate:
-    if not extract_metadata:
-        f = open(new_dir+os.sep+'metadata.txt','w')
-        elapsed_time_ms = 0.0
-        for i in range(num_frames):
-            fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
-            imwrite(fout,tiff_frames[i])
-
-            #Auto-adjust brightness/contrast/window/level with ImageJ
-            print("Autoadjusting {}with ImageJ".format(fout))
-            macro = """
-            open("{filepath}");
-            run("Enhance Contrast...", "saturated=0.05 normalize process_all");
-            setAutoThreshold("Yen dark no-reset");
-            run("Convert to Mask", "method=Yen background=Dark calculate black");
-            run("Median...", "radius=3 stack");
-            run("Save");
-            close();
-            """.format(filepath=fout)
-            ij.py.run_macro(macro)
-
-            #Write elapsed times
-            f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
-            elapsed_time_ms += 1000*1.0/frame_rate
-        f.close()
-    
-    #If using elapsed times from MicroManager metadata file:
-    if extract_metadata:
-        original_metadata = open
-        for i in range(num_frames):
-            fout = new_dir+os.sep+'img_000000%03d'%(i)+'__000.tif'
-            imwrite(fout,tiff_frames[i])
-
-            #Auto-adjust brightness/contrast/window/level with ImageJ
-            print("Autoadjusting {} with ImageJ".format(fout))
-            macro = """
-            open("{filepath}");
-            run("Enhance Contrast...", "saturated=0.05 normalize process_all");
-            setAutoThreshold("Yen dark no-reset");
-            run("Convert to Mask", "method=Yen background=Dark calculate black");
-            run("Median...", "radius=3 stack");
-            run("Save");
-            close();
-            """.format(filepath=fout)
-            ij.py.run_macro(macro)
-            
-            #Write elapsed times
-            #Open original metadata file and extract times
-            filename_head = re.findall('[^/]+$', fname) #Reconstruct filename head from fname, ex: if fname = '/date/slide/condition/pca4-5_1.repeat', filename_head = 'pca4-5_1.repeat'
-            filename_head_trim = re.findall('[^.]+', filename_head[0]) #Remove everything following the period (for my own convenience since our Micromanager adds a '*.ome' suffix to everything). Extremely inelegant use of Regex, will need to fix later.
-            original_metadata=open(head+'/'+filename_head_trim[0]+'_metadata.txt','r')
-            lines = original_metadata.readlines()
-            filtered_lines = list(filter(lambda x:x.find('"ElapsedTime-ms"') > 0,lines))
-            original_metadata.close()
-
-            #Write times to new "metadata.txt" file; *NOTE* I had to correct the times such that frame 1 is at 0 ms otherwise the program fails
-            uncorrected_times = []
-            corrected_times = []
-            for i in filtered_lines:
-                elapsed_times = re.findall('\d+.\d+', i)
-                uncorrected_times.append((float(elapsed_times[0])))
-            for i in uncorrected_times:
-                corrected_times.append(i-uncorrected_times[0])
-            f = open(new_dir+'/metadata.txt','w')
-            for i in corrected_times:
-                f.write('  "ElapsedTime-ms": {},\n'.format(i))
-            f.close()
 
 import time
 import math
@@ -170,34 +69,63 @@ def make_N_colors(cmap_name, N):
     cmap = matplotlib.colormaps[cmap_name].resampled(N)
     return cmap(np.arange(N))
 
-def stack_to_tiffs(fname, frame_rate=1.0):
+def stack_to_tiffs(fname, frame_rate=1.0, extract_metadata=False):
     '''
-    Read and convert tiff stack file to individual files
+    Read and convert tiff stack file to individual files. If
+    extract_metadata is True, elapsed frame times are read from the
+    MicroManager *_metadata.txt file alongside fname instead of being
+    generated from frame_rate.
     '''
     #Find the directory the tiff stack file is located
     abs_path  = os.path.abspath(fname)
     head,tail = os.path.split(abs_path)
-    base,ext  = os.path.splitext(tail)
-    
+
     #Make the new directory
-    new_dir   = head+'/'+('_'.join(base.split())).replace('#','')
+    new_dir   = get_exploded_dir(fname)
     if not os.path.isdir(new_dir):
         os.mkdir(new_dir)
-    
+    print("Processing {}".format(new_dir))
+
     #Read all the frames
     tiff_frames  = skio.imread(fname)
     num_frames   = len(tiff_frames)
-    
-    f = open(new_dir+'/metadata.txt','w')
-    elapsed_time_ms = 0.0
+
     #Write out the individual image files
     for i in range(num_frames):
         fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
         imwrite(fout,tiff_frames[i])
-        #Write elapsed times
-        f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
-        elapsed_time_ms += 1000*1.0/frame_rate
-    f.close()
+
+    if not extract_metadata:
+        f = open(new_dir+'/metadata.txt','w')
+        elapsed_time_ms = 0.0
+        for i in range(num_frames):
+            f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
+            elapsed_time_ms += 1000*1.0/frame_rate
+        f.close()
+    else:
+        #Reconstruct filename head from fname, ex: if fname =
+        #'/date/slide/condition/pca4-5_1.repeat', filename_head =
+        #'pca4-5_1.repeat'
+        filename_head      = re.findall('[^/]+$', fname)
+        #Remove everything following the period (MicroManager adds a
+        #'*.ome' suffix to everything)
+        filename_head_trim  = re.findall('[^.]+', filename_head[0])
+        original_metadata   = open(head+'/'+filename_head_trim[0]+'_metadata.txt','r')
+        lines                = original_metadata.readlines()
+        filtered_lines       = list(filter(lambda x:x.find('"ElapsedTime-ms"') > 0,lines))
+        original_metadata.close()
+
+        #Correct the times such that frame 1 is at 0 ms, otherwise the
+        #program fails
+        uncorrected_times = []
+        for line in filtered_lines:
+            elapsed_times = re.findall('\d+.\d+', line)
+            uncorrected_times.append(float(elapsed_times[0]))
+
+        f = open(new_dir+'/metadata.txt','w')
+        for elapsed_time_ms in uncorrected_times:
+            f.write('  "ElapsedTime-ms": {},\n'.format(elapsed_time_ms-uncorrected_times[0]))
+        f.close()
 
 
 
