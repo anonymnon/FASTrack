@@ -18,9 +18,13 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    scripts=['bin/fast',
-            'bin/lima',
-            'bin/stack2tifs'],
+    entry_points={
+        'console_scripts': [
+            'fast=FAST.cli_fast:main',
+            'lima=FAST.cli_lima:main',
+            'stack2tifs=FAST.cli_stack2tifs:main',
+        ],
+    },
     install_requires=['cycler>=0.11.0',
                     'decorator>=5.1.1',
                     'imageio>=2.31.0',

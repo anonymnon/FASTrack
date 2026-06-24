@@ -113,17 +113,32 @@ Using a `conda`/Miniconda environment is the most reliable approach on Windows.
    ```
 4. From the cloned repository directory, install FAST:
    ```bat
-   pip install --upgrade pip
-   pip install .
+   python -m pip install --upgrade pip
+   python -m pip install .
    ```
+5. Confirm the commands installed correctly:
+   ```bat
+   stack2tifs
+   ```
+   This should print a usage/help banner (then exit, since no `-d` directory was given). If Windows instead says `'stack2tifs' is not recognized...`, see **Troubleshooting** below.
 
 Alternatively, if you prefer plain `venv` instead of conda on Windows, install Python from [python.org](https://www.python.org/) (Tk is included by default) and [ffmpeg](https://ffmpeg.org/download.html#build-windows), making sure it's added to your `PATH`. Then:
 ```bat
 python -m venv %USERPROFILE%\venvs\FAST
 %USERPROFILE%\venvs\FAST\Scripts\activate
-pip install --upgrade pip
-pip install .
+python -m pip install --upgrade pip
+python -m pip install .
 ```
+
+#### Troubleshooting: `fast`/`lima`/`stack2tifs` not found after `pip install .`
+
+On Windows, many machines have more than one Python installed (a conda env, python.org, the Microsoft Store stub, etc.), and they can shadow each other's `pip` on `PATH`. If you run `pip install .` and the bare `pip` command happens to resolve to a *different* Python than the one in your active conda/venv environment, FAST gets installed into the wrong place and the commands won't be on `PATH` for the environment you're using.
+
+Always prefer `python -m pip install .` over bare `pip install .` — this guarantees pip installs into the same Python that the `python` command resolves to. To check what your activated environment's `pip` actually points at:
+```bat
+python -m pip --version
+```
+The printed path should be inside your conda/venv environment's folder (e.g. `...\envs\FAST\Lib\site-packages\pip` or `...\venvs\FAST\Lib\site-packages\pip`). If it points somewhere else, your environment doesn't have `pip` installed in it — for conda, run `conda install pip` inside the activated environment first, then retry `python -m pip install .`.
 
 ### Re-installing after pulling updates or applying a patch
 
@@ -134,6 +149,8 @@ pip install --force-reinstall --no-deps .
 If you'd rather have your installed environment automatically reflect any source edits without reinstalling, use an editable install instead: `pip install -e .`
 
 After installation, don't move the `FASTrack` directory to a different location without reinstalling.
+
+**Windows users upgrading from an older FASTrack install:** versions prior to v2.0.0-alpha.1 registered `fast`/`lima`/`stack2tifs` using a packaging method that didn't reliably create a working command on Windows. If you previously worked around this, or have a stale install lying around, run `python -m pip install --force-reinstall --no-deps .` to pick up the fix.
 
 ## Preparation of movie files
 

@@ -1,0 +1,579 @@
+import os
+import sys
+import csv
+import time
+import numpy as np
+import argparse
+import warnings
+import getpass
+import multiprocessing as mp
+
+from FAST import motility
+
+#Utility functions
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+def _process_frame(args):
+    '''
+    Worker function run in a long-lived pool process. Defined at module
+    level (rather than spawning a fresh "python3 script.py" subprocess
+    per frame) so the heavy FAST/numpy/skimage import cost is paid once
+    per worker process and reused across every frame it handles.
+    '''
+    directory, header, tail, frame_no, force_analysis = args
+    new_Motility            = motility.Motility()
+    new_Motility.directory  = directory
+    new_Motility.header     = header
+    new_Motility.tail       = tail
+    new_Motility.read_frame(float(frame_no), force_analysis)
+    new_Motility.save_frame()
+
+#Suppress all the warnings
+warnings.filterwarnings("ignore")
+
+def main():
+
+    #Definition of the program
+    usage            = ['%(prog)s -d [DIRECTORY]',
+                        '------------------------------------------------------------------------',
+                        'FAST v1.0: Fast Actin Filament Spud Trekker',
+                        '03/26/2017',
+                        'Tural Aksel',
+                        '',
+                        'FAST provides fast and accurate analysis of actin gliding assay movies.',
+                        'For bugs and other problems please contact Tural Aksel at turalaksel@gmail.com',
+                        '------------------------------------------------------------------------'
+                        ]
+
+    #Default pixel size in nm - minv and maxd defaults are derived from this
+    DEFAULT_PIXEL_SIZE = 80.65
+
+    #Create the parser
+    parser = argparse.ArgumentParser(description='',usage='\n'.join(usage))
+    parser.add_argument('-d'    ,help='top directory of the movies to be analyzed')
+    parser.add_argument('-f'    ,action  = 'store_true'  ,default=False, help='force analyze all the movies')
+    parser.add_argument('-r'    ,action  = 'store_true'  ,default=False, help='recalculate instantaneous velocities from saved filament files')
+    parser.add_argument('-m'    ,action  = 'store_true'  ,default=False, help='make filament tracking movie')
+    parser.add_argument('-om'   ,action  = 'store_true'  ,default=False, help='make movie of raw frames overlaid on the paths_2D.png background')
+    parser.add_argument('-ofps' ,default = 5,        type=int,   help='frame rate for the overlay movie (Default:5)')
+    parser.add_argument('-sm'   ,action  = 'store_true'  ,default=False, help='make movie of skeletonized filaments only (no trajectories), with stuck filaments shown in red')
+    parser.add_argument('-sfps' ,default = 5,        type=int,   help='frame rate for the skeleton movie (Default:5)')
+
+    parser.add_argument('-p'    ,default = 5,       type=int,   help='minimum length for the paths to be analyzed (Default:5)')
+    parser.add_argument('-n'    ,default = 5,       type=int,   help='number of consecutive frames for averaging (Default:5)')
+
+    parser.add_argument('-pt'   ,default = 500,     type=int,   help='percent tolerance (Default:none)')
+    parser.add_argument('-px'   ,default = DEFAULT_PIXEL_SIZE,   type=float, help='pixel size in nm (Default:%.2f nm)'%(DEFAULT_PIXEL_SIZE))
+    parser.add_argument('-ymax' ,default = 1500,    type=int,   help='maximum velocity for the plot in nm/s (Default:1500)')
+    parser.add_argument('-xmax' ,default = 10000,   type=int,   help='maximum length for the plot in nm (Default:10000)')
+    parser.add_argument('-cl'   ,default = 'b',     type=str,   help='color for maximum velocity points (Default:blue)')
+    parser.add_argument('-fx'   ,default = 'none',  choices = ['none','exp','uyeda'], type=str, help='function to be fitted to maximum velocity data')
+    parser.add_argument('-maxd' ,default = None, type=float, help='maximum allowed distance in nm between adjacent frames for a filament (Default: 10x the -px pixel size)')
+    parser.add_argument('-minv' ,default = None, type=float, help='minimum average path velocity for a filament to be classified as stuck (Default: equal to the -px pixel size)')
+
+    parser.add_argument('-oscore'   ,default = 0.4, type=float, help='overlap score cutoff value to make the connections between filaments - advanced option (Default:0.4)')
+    parser.add_argument('-lascore'  ,default = 1.0, type=float, help='log-area score cutoff value to make the connections between filaments - advanced option (Default:1.0)')
+    parser.add_argument('-dlascore' ,default = 0.5, type=float, help='difference-log-area score cutoff value to make the connections between filaments - advanced option (Default:0.5)')
+
+    args = parser.parse_args()
+    args_dict = vars(args)
+    parser.print_help()
+
+    #Get username
+    user_name = getpass.getuser()
+    print('-'*10+'Welcome %s'%(user_name)+'-'*10)
+
+    #Get the argument
+    main_dir             = args_dict['d']
+    force_analysis       = args_dict['f']
+    recalculate          = args_dict['r']
+    num_frames_ave       = args_dict['n']
+    make_movie           = args_dict['m']
+    make_overlay_movie   = args_dict['om']
+    overlay_movie_fps    = args_dict['ofps']
+    make_skeleton_movie  = args_dict['sm']
+    skeleton_movie_fps   = args_dict['sfps']
+    min_path_length      = args_dict['p']
+    percent_tolerance    = args_dict['pt']
+    plot_ymax            = args_dict['ymax']
+    plot_xmax            = args_dict['xmax']
+    maxvel_color         = args_dict['cl']
+    fit_function         = args_dict['fx']
+    pixel_size           = args_dict['px']
+    #-maxd/-minv scale automatically with -px unless the user explicitly overrides them
+    max_velocity         = args_dict['maxd'] if args_dict['maxd'] is not None else 10*pixel_size
+    min_velocity         = args_dict['minv'] if args_dict['minv'] is not None else pixel_size
+
+    #Hard-coded parameters
+    overlap_score_cutoff        = args_dict['oscore']
+    log_area_score_cutoff       = args_dict['lascore']
+    diff_log_area_score_cutoff  = args_dict['dlascore']
+
+    #Per-movie rows for the summary CSV, plus the user-modifiable parameter
+    #values that get appended as columns to every row
+    summary_rows  = []
+    param_columns = ['px','p','n','pt','ymax','xmax','cl','fx','maxd','minv','oscore','lascore','dlascore','ofps','sfps','m','om','sm','f','r']
+    param_values  = {'px':pixel_size, 'p':min_path_length, 'n':num_frames_ave, 'pt':percent_tolerance,
+                      'ymax':plot_ymax, 'xmax':plot_xmax, 'cl':maxvel_color, 'fx':fit_function,
+                      'maxd':max_velocity, 'minv':min_velocity, 'oscore':overlap_score_cutoff,
+                      'lascore':log_area_score_cutoff, 'dlascore':diff_log_area_score_cutoff,
+                      'ofps':overlay_movie_fps, 'sfps':skeleton_movie_fps, 'm':make_movie, 'om':make_overlay_movie,
+                      'sm':make_skeleton_movie, 'f':force_analysis, 'r':recalculate}
+
+
+    #Check if the last character is '/' - if yes, remove it
+    if main_dir != None and len(main_dir) > 0 and main_dir[-1] == '/':
+        main_dir = main_dir[:-1]
+
+    #Check if the directory exists
+    if main_dir == None or not os.path.isdir(main_dir):
+        sys.exit("Directory doesn't exist. Program is exiting.")
+
+    #Main output directory - named after the top-level (Level1) directory only,
+    #so output paths stay short and don't mirror the full input path
+    main_dir_parent = os.path.dirname(main_dir)
+    main_out_dir    = os.path.basename(main_dir)
+    cwd             = os.getcwd()
+
+    #If outputs/<LEVEL1> already exists, suffix with -2, -3, etc. so re-running
+    #with different parameters doesn't overwrite a previous run's results
+    if os.path.isdir('outputs/'+main_out_dir):
+        suffix_num = 2
+        while os.path.isdir('outputs/'+main_out_dir+'-%d'%suffix_num):
+            suffix_num += 1
+        main_out_dir = main_out_dir+'-%d'%suffix_num
+
+    '''
+        Prepare the files for data analysis
+    ''' 
+
+    #Tail for the tif files
+    tail_tif = ""
+
+    for root, subFolders, files in os.walk(main_dir):
+        if len(subFolders) == 0:
+            #Prepare the python script to read frames
+        
+            tif_files    = list(filter(lambda x:x[-4:] == '.tif',files))
+            if len(tif_files) == 0:
+                continue
+
+            #A leaf directory with no subfolders is assumed to hold already-
+            #exploded frames named img_000000NNN__TAIL.tif. If stack2tifs
+            #skipped a stack file (e.g. below its -s size threshold), its
+            #raw, un-exploded N_MMStack_Pos0.ome.tif sits alone here instead -
+            #skip it rather than crashing trying to parse a frame number out
+            #of its filename
+            first_tif    = tif_files[0]
+            name_parts   = first_tif.split('_')
+            if len(name_parts) < 3 or not name_parts[1].isdigit():
+                print('Skipping %s - tif files here are not exploded frames (run stack2tifs first)'%root)
+                continue
+
+            #Determine the naming scheme of the tif files
+            tail_tif     = name_parts[2]
+        
+            #Remove all the spaces in the directories as it causes problems in analysis  
+            head,tail_dir= os.path.split(root)
+            tail_dir     = '_'.join(tail_dir.split())
+            new_root     = head+'/'+tail_dir
+            os.rename(root,new_root)
+            root = head+'/'+tail_dir
+
+            #Prepare the input file listing the frame numbers to process
+            input_file = root+'.in'
+            f          = open(input_file,'w')
+            files      = list(filter(lambda x:os.path.splitext(x)[1] == '.tif',os.listdir(root)))
+
+            #Write the frame numbers
+            frame_nos  = sorted([int(os.path.basename(x).split('_')[1]) for x in files])
+            frame_nos  = [str(x)+'\n' for x in frame_nos]
+            f.writelines(frame_nos)
+            f.close()
+
+    '''
+    The analysis starts here
+    '''
+
+    if not os.path.isdir('outputs'):
+        os.makedirs('outputs')
+
+    if not os.path.isdir('outputs/'+main_out_dir):
+        os.makedirs('outputs/'+main_out_dir)
+
+    if not os.path.isdir('outputs/'+main_out_dir+'/combined'):
+        os.makedirs('outputs/'+main_out_dir+'/combined')
+
+    #Output file for parameter averages
+    out_MEAN_fname  = os.path.abspath('outputs/'+main_out_dir+'/combined/MEAN_values.txt')
+    out_SEM_fname   = os.path.abspath('outputs/'+main_out_dir+'/combined/SEM_values.txt')
+
+    #If we force the analysis or recalculate the parameters, rewrite the values
+    if not os.path.isfile(out_MEAN_fname) or force_analysis or recalculate:
+        data_header = ("%6s\t%4s\t%80s"+"\t%20s"*13+"\n")%('slide','exp','filename','protein','points-filtered','conc(mg/ml)','utrophin(nM)','top-vel-5','p-stuck','MVEL','MVEL-filtered','plateau','MVIS','mean-length-all','mean-length-filtered','mean-length-mobile')
+    
+        m_stats    = open(out_MEAN_fname,'w')
+        m_stats.write(data_header)
+    
+        s_stats    = open(out_SEM_fname,'w')
+        s_stats.write(data_header)
+    else:
+        m_stats   = open(out_MEAN_fname,'a')
+        s_stats   = open(out_SEM_fname,'a')
+
+    #Folders to process / experiment numbers
+    process_folders = {}
+
+    for root, subFolders, files in os.walk(main_dir):
+        #Normalize path (in case mix of '\' and '/')
+        root = os.path.normpath(root)
+
+        #Split the entries
+        split_path_entries = root.split(os.sep)
+    
+        #Create the top-level directory in outputs folder
+        top_directory      = split_path_entries[0]
+    
+        #Check for either *.tif or *.npy files for folders to be processed 
+        if len(subFolders) == 0 and (len(list(filter(lambda x:x[-4:] == '.tif',files))) > 0 or len(list(filter(lambda x:x[:6] == 'filXYs',files))) > 0):
+            entries = root.split(os.sep)
+            top_folder = '/'.join(entries[:-1])
+            exp_num    = entries[-1]
+            if top_folder not in process_folders:
+                process_folders[top_folder] = []
+            process_folders[top_folder].append(exp_num)
+
+    #Sorted top folders
+    sorted_top_roots = sorted(process_folders.keys())
+    for top_root in sorted_top_roots:
+        sorted_exp_nums = sorted(process_folders[top_root])
+        process_folders[top_root] = sorted_exp_nums
+
+    #Data counters
+    all_data_counter      = 0
+    combined_data_counter = 0
+
+    #Number of frames in a movie
+    number_of_frames      = 0
+
+    #Go through all the folders
+    for top_root in sorted_top_roots:
+        #Combined statistics
+        combined_stats        = []
+    
+        #Combined full length velocity data
+        combined_full_len_vel = []
+    
+        #Combined max length velocity data
+        combined_max_len_vel  = []
+    
+        #Final - folder : lowest level folder
+        data_info        = os.path.relpath(top_root,main_dir_parent).split(os.sep)
+        top_folder       = data_info[-1]
+        root_header      = '_'.join(data_info)
+
+        #Extract slide number
+        slide_num = -1
+        if len(data_info) > 1:
+            slide_info    = data_info[-2]
+            slide_entries = slide_info.split('_')
+        
+            if len(slide_entries) == 2 and slide_entries[0] == 'slide':
+                slide_num = int(slide_entries[1])
+    
+        #Extract protein name and utrophin concentration information
+        fname_entries = top_folder.split('_')
+    
+        #Determine protein name
+        if len(fname_entries) > 0:
+            protein_name = fname_entries[0]
+        else:
+            protein_name = 'N/A'
+    
+        #Check if the word utr exists
+        utr_found      = False
+        positions_utr  = [ x == 'utr' for x in fname_entries]
+    
+        #By default make utrophin concentration 0
+        utrophin_conc  = 0.0
+        if sum(positions_utr) > 0:
+            pos = fname_entries.index('utr')
+            utr_found = True
+            if pos - 1 > -1 and fname_entries[pos-1][-2:] == 'nM' and is_number(fname_entries[pos-1][:-2]):
+                utrophin_conc = float(fname_entries[pos-1][:-2])
+            else:
+                utrophin_conc = 0.0
+    
+        #Check if the word mg or mgml exists for protein concentration determination
+        positions_conc  = [ x == 'ml' for x in fname_entries]
+    
+        if sum(positions_conc) > 0:
+            pos = fname_entries.index('ml')
+            if pos - 1 > -1 and fname_entries[pos-1][-2:] == 'mg' and is_number(fname_entries[pos-1][:-2]):
+                protein_conc = float(fname_entries[pos-1][:-2])
+            else:
+                protein_conc = 0.0
+        else:
+            protein_conc = 0.0
+    
+        #Final - folder : lowest level folder
+        data_info        = os.path.relpath(top_root,main_dir_parent).split(os.sep)
+        top_folder       = data_info[-1]
+        root_header      = '_'.join(data_info)
+
+        #Combined length-velocity
+        combined_vl_png_name = cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_length_velocity.png'
+    
+        #If combined analysis is performed skip
+        if not recalculate and not force_analysis and os.path.isfile(combined_vl_png_name):
+            continue
+    
+        #Change directory to the location that the analysis will be performed
+        os.chdir(top_root)
+
+        #Long-lived worker pool, reused across every movie folder under this
+        #top_root so the FAST/numpy/skimage import cost is paid once per
+        #worker process rather than once per frame
+        pool = mp.Pool()
+
+        for final_folder in process_folders[top_root]:
+            #Construct root name
+            root = top_root+'/'+final_folder
+        
+            #Check movie quality
+            new_Frame            = motility.Frame()
+            new_Frame.directory  = final_folder
+            new_Frame.header     = 'img_000000'
+            new_Frame.tail       = tail_tif
+            file_exists          = new_Frame.read_frame(0)
+        
+            #Frame width and height
+            frame_width          = new_Frame.width
+            frame_height         = new_Frame.height
+
+            if not file_exists:
+                picture_quality = 'good'
+            else:
+                picture_quality = new_Frame.check_picture_quality()
+        
+            #If the picture quality is bad, return early
+            if picture_quality == 'bad':
+                print('Bad picture quality in %s'%(root))
+                continue
+        
+            #Output filenames - named starting from the Level1 directory onward,
+            #so filenames don't carry the full (and possibly very long) input path
+            file_header = '_'.join(os.path.relpath(root,main_dir_parent).split(os.sep))
+
+            #Row label for the summary CSV - relative to LEVEL1 (LEVEL2_LEVEL3_LEVEL4_...),
+            #since the CSV already lives inside/next to the LEVEL1 folder
+            summary_row_label = '_'.join(os.path.relpath(root,main_dir).split(os.sep))
+
+            out_vl_png_fname  = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_length_velocity.png'
+            out_vl_txt_fname  = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_'
+            out_path_fname    = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_paths'
+        
+            #Input filename listing the frame numbers to process
+            input_file   = final_folder+'.in'
+
+            print('Processing tif files in %s'%(root))
+
+            #Start the timer
+            start_t      = time.time()
+
+            #Read the frame numbers for this folder
+            f         = open(input_file,'r')
+            frame_nos = [int(line.strip()) for line in f.readlines()]
+            f.close()
+
+            #A single frame can't be linked to anything, so no paths or
+            #velocities can ever come out of it - skip it before paying for
+            #the (often slow) per-frame filament extraction below
+            if len(frame_nos) < 2:
+                print('Only %d frame(s) in %s - skipping (need at least 2 frames to calculate velocities)'%(len(frame_nos),root))
+                continue
+
+            #Parallel-execution of filament extraction of all the frames,
+            #using the long-lived worker pool created above
+            frame_args = [(final_folder,'img_000000',tail_tif,no,force_analysis) for no in frame_nos]
+            pool.map(_process_frame,frame_args)
+
+            #Determine the number of frames in a movie
+            number_of_frames = len(frame_nos)
+        
+            if len(frame_nos) > 0:
+                #Create the Motility object
+                new_motility                = motility.Motility()
+                new_motility.dx             = 1.0*pixel_size
+                new_motility.max_velocity   = 1.0*max_velocity/pixel_size
+                new_motility.num_frames     = len(frame_nos)
+                new_motility.directory      = final_folder
+                new_motility.header         = 'img_000000'
+                new_motility.tail           = tail_tif
+                new_motility.force_analysis = force_analysis
+                new_motility.width          = frame_width
+                new_motility.height         = frame_height
+                new_motility.min_velocity   = min_velocity
+
+                #Assign the hard-coded parameters
+                new_motility.overlap_score_cutoff       = overlap_score_cutoff
+                new_motility.log_area_score_cutoff      = log_area_score_cutoff
+                new_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
+            
+                #If links are already constructed read frame links and skip the next parts
+                if not new_motility.read_frame_links():
+                    new_motility.load_frame1(0)
+                    new_motility.read_metadata()
+                
+                    for no in frame_nos[1:]:
+                        print('Making the links: Frame: %d'%(no))
+                        new_motility.load_frame2(no)
+                        new_motility.make_frame_links()
+                        new_motility.frame1 = new_motility.frame2
+                
+                    #Save the frame-links
+                    new_motility.save_links()
+            
+                #Process the frame links to create paths, path velocities
+                new_motility.process_frame_links(num_frames_ave)
+            
+                #Plot created paths
+                new_motility.plot_2D_path_data(num_frames_ave, extra_fname=out_path_fname)
+            
+                if make_overlay_movie:
+                    #Make a movie of the filament skeletons overlaid on each path's trajectory, drawn progressively in sync with the current frame
+                    new_motility.make_overlay_movie(frame_nos,num_frames_ave,fps=overlay_movie_fps,extra_fname=out_vl_txt_fname)
+
+                if make_skeleton_movie:
+                    #Make a movie of just the filament skeletons, with stuck filaments shown in red
+                    new_motility.make_skeleton_movie(frame_nos,fps=skeleton_movie_fps,extra_fname=out_vl_txt_fname)
+
+                if make_movie:
+                    #Reconstruct skeleton images from frame links
+                    new_motility.reconstruct_skeleton_images()
+
+                    #Make the movie
+                    new_motility.make_movie(extra_fname=out_vl_txt_fname)
+            
+                #If there is no velocity point in the data move on - we need at least 10 points
+                if len(new_motility.full_len_vel) < 10:
+                    continue
+            
+                top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all, num_points_filtered, std_len_filtered, skew_len_filtered = new_motility.plot_length_velocity(extra_fname=out_vl_png_fname, max_vel=plot_ymax, max_length = plot_xmax, min_path_length=min_path_length, percent_tolerance=percent_tolerance, min_points=10, print_plot=True, maxvel_color = maxvel_color, fit_f = fit_function)
+
+                #If eary terminated - skip to next interation
+                if top_5_velocity == -1:
+                    continue
+
+                #Add parameters to array
+                combined_stats.append([num_points_filtered,top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_all, mean_len_filtered, mean_len_mobile])
+
+                #Add a row to the per-movie summary CSV data
+                summary_rows.append([summary_row_label, top_5_velocity, MVEL_filtered, MVEL, percent_stuck, mean_len_filtered, std_len_filtered, skew_len_filtered] + [param_values[c] for c in param_columns])
+
+                #Write length-velocity data
+                new_motility.write_length_velocity(extra_fname=out_vl_txt_fname)
+            
+                #Add length-velocity data to combined data set
+                combined_full_len_vel.append(new_motility.full_len_vel)
+                combined_max_len_vel.append(new_motility.max_len_vel)
+            
+                #Update the counters
+                all_data_counter += 1
+            
+            end_t = time.time()
+            print("Time spent: %.1f"%(end_t-start_t))
+    
+    
+        #Shut down the worker pool for this top_root
+        pool.close()
+        pool.join()
+
+        #Go back to main directory
+        os.chdir(cwd)
+    
+        #If there is no data point move on
+        if len(combined_full_len_vel) == 0:
+            continue
+    
+        #Prompt which files are combined
+        print("Combining data in %s"%(root_header))
+    
+        #Process and write down the combined results 
+        combined_full_len_vel = np.vstack(combined_full_len_vel)
+        combined_max_len_vel  = np.vstack(combined_max_len_vel)
+    
+        #Motility object for combined lenth-velocity data
+        combined_motility              = motility.Motility()
+        combined_motility.directory    = 'outputs/'+main_out_dir+'/combined'
+        combined_motility.full_len_vel = combined_full_len_vel
+        combined_motility.max_len_vel  = combined_max_len_vel
+        combined_motility.num_frames   = number_of_frames
+        combined_motility.dx           = 1.0*pixel_size
+        combined_motility.max_velocity = 1.0*max_velocity/pixel_size
+        combined_motility.min_velocity = min_velocity
+
+        #Assign the hard-coded parameters
+        combined_motility.overlap_score_cutoff       = overlap_score_cutoff
+        combined_motility.log_area_score_cutoff      = log_area_score_cutoff
+        combined_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
+
+        #Total number of points
+        total_num_points = len(combined_full_len_vel[:,0])
+    
+    
+        #If there is no velocity point in the data move on - we need at least 10 points
+        if total_num_points  < 10:
+            continue
+    
+        #Process data and write results
+        top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered, std_len_filtered, skew_len_filtered = combined_motility.plot_length_velocity(header=root_header+'_', max_vel=plot_ymax, max_length = plot_xmax, min_path_length=min_path_length, percent_tolerance=percent_tolerance, min_points=10, print_plot=True, maxvel_color = maxvel_color, fit_f = fit_function)
+    
+        #If eary terminated - skip to next iteration
+        if top_5_velocity == -1:
+            continue
+    
+        #Write length-velocity data
+        combined_motility.write_length_velocity(header=root_header+'_')
+    
+        #Combined statistics
+        combined_stats = np.array(combined_stats)
+        mvals = np.mean(combined_stats,axis=0)
+        svals = np.std(combined_stats,axis=0)
+    
+        #Total filtered points
+        total_filtered_points =  np.sum(combined_stats[:,0])
+    
+        #Stats lines to write
+        fmt_string = "%6d\t%4d\t%80s\t%20s\t%20d"+"\t%20.3f"*11+"\n"
+        mean_line  = fmt_string%(slide_num,combined_data_counter, root_header, protein_name, total_filtered_points, protein_conc, utrophin_conc, mvals[1], mvals[2], mvals[3], mvals[4], mvals[5], mvals[6], mvals[7], mvals[8], mvals[9])
+        std_line   = fmt_string%(slide_num,combined_data_counter, root_header, protein_name, total_filtered_points, protein_conc, utrophin_conc, svals[1], svals[2], svals[3], svals[4], svals[5], svals[6], svals[7], svals[8], mvals[9])
+    
+        m_stats.write(mean_line)
+        s_stats.write(std_line)
+
+    #Close the files
+    m_stats.close()
+    s_stats.close()
+
+    #Write the per-movie summary CSV - one copy in the Level1 input directory,
+    #one copy in the top of the corresponding outputs folder
+    if len(summary_rows) > 0:
+        summary_header = ['filename','top5_velocity_nm_s','MVEL_filtered_nm_s','MVEL_unfiltered_nm_s','percent_stuck','FIL_LENGTH_mean_nm','FIL_LENGTH_std_nm','FIL_LENGTH_skew']+param_columns
+
+        summary_csv_paths = [os.path.join(main_dir,'summary.csv'),
+                              os.path.join(cwd,'outputs',main_out_dir,'summary.csv')]
+
+        for summary_csv_path in summary_csv_paths:
+            with open(summary_csv_path,'w',newline='') as summary_f:
+                csv_writer = csv.writer(summary_f)
+                csv_writer.writerow(summary_header)
+                csv_writer.writerows(summary_rows)
+
+if __name__ == "__main__":
+    main()
