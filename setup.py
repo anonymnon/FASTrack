@@ -21,6 +21,7 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'fast=FAST.cli_fast:main',
+            'hill=FAST.cli_hill:main',
             'lima=FAST.cli_lima:main',
             'stack2tifs=FAST.cli_stack2tifs:main',
         ],
@@ -32,6 +33,8 @@ setuptools.setup(
                     'matplotlib>=3.7.0',
                     'numpy>=1.24.0',
                     'opencv-python>=4.8.0',
+                    'openpyxl>=3.1.0',
+                    'pandas>=1.5.0',
                     'pillow>=9.5.0',
                     'pyparsing>=3.0.9',
                     'python-dateutil>=2.8.2',
