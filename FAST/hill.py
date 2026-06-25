@@ -3,9 +3,17 @@ import sys
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
+from scipy.stats import t as t_dist
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+
+# Use Arial if available, otherwise fall back to the default sans-serif
+if 'Arial' in [f.name for f in fm.fontManager.ttflist]:
+    plt.rcParams['font.family'] = 'Arial'
+else:
+    plt.rcParams['font.family'] = 'sans-serif'
 
 
 def hill_func(pCa, Smin, Smax, Ca50, n):
@@ -78,6 +86,11 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
     Smin_fit, Smax_fit, Ca50_fit, n_fit = popt
     pCa50_fit   = -np.log10(Ca50_fit)
     perr        = np.sqrt(np.diag(pcov))
+    # 95% CI: t-critical for n_data - 4 degrees of freedom (4 parameters)
+    t_crit      = t_dist.ppf(0.975, df=max(len(pCa_data) - 4, 1))
+    ci          = t_crit * perr
+    # pCa50 CI via error propagation: d(pCa50)/d(Ca50) = -1/(Ca50 * ln10)
+    pCa50_ci    = t_crit * perr[2] / (Ca50_fit * np.log(10))
     speed_pred  = hill_func(pCa_data, *popt)
     ss_res      = np.sum((speed_data - speed_pred) ** 2)
     ss_tot      = np.sum((speed_data - np.mean(speed_data)) ** 2)
@@ -89,12 +102,12 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
     with open(txt_file, 'w') as f:
         f.write(f"Hill Fit Results: {os.path.basename(data_file)}\n")
         f.write("=" * 60 + "\n\n")
-        f.write("Fitted Parameters\n")
-        f.write(f"  Smin             = {Smin_fit:10.4f} +/- {perr[0]:.4f} nm/s\n")
-        f.write(f"  Smax             = {Smax_fit:10.4f} +/- {perr[1]:.4f} nm/s\n")
-        f.write(f"  Ca50             = {Ca50_fit:10.4e} +/- {perr[2]:.4e} M\n")
-        f.write(f"  pCa50            = {pCa50_fit:10.4f}\n")
-        f.write(f"  n (Hill coeff.)  = {n_fit:10.4f} +/- {perr[3]:.4f}\n\n")
+        f.write("Fitted Parameters (95% confidence interval)\n")
+        f.write(f"  Smin             = {Smin_fit:10.4f} +/- {ci[0]:.4f} nm/s\n")
+        f.write(f"  Smax             = {Smax_fit:10.4f} +/- {ci[1]:.4f} nm/s\n")
+        f.write(f"  Ca50             = {Ca50_fit:10.4e} +/- {ci[2]:.4e} M\n")
+        f.write(f"  pCa50            = {pCa50_fit:10.4f} +/- {pCa50_ci:.4f}\n")
+        f.write(f"  n (Hill coeff.)  = {n_fit:10.4f} +/- {ci[3]:.4f}\n\n")
         f.write("Goodness of Fit\n")
         f.write(f"  R²   = {r_squared:.6f}\n")
         f.write(f"  RMSE = {rmse:.4f} nm/s\n\n")
