@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import csv
 import time
 import numpy as np
@@ -10,6 +11,9 @@ import multiprocessing as mp
 
 from FAST import motility
 
+#Matches a path component named pCaX or pCaX-Y (X,Y integers), e.g. pCa4 or pCa4-7
+PCA_FOLDER_RE = re.compile(r'^pCa(\d+)(?:-(\d+))?$',re.IGNORECASE)
+
 #Utility functions
 def is_number(s):
     try:
@@ -17,6 +21,19 @@ def is_number(s):
         return True
     except ValueError:
         return False
+
+def extract_pca(path):
+    '''
+    Find a pCaX or pCaX-Y folder anywhere in path and return its value as a
+    float (pCa4 -> 4.0, pCa4-7 -> 4.7). Returns None if no such folder exists
+    in path.
+    '''
+    for part in os.path.normpath(path).split(os.sep):
+        m = PCA_FOLDER_RE.match(part)
+        if m:
+            whole,frac = m.group(1),m.group(2)
+            return float(whole+'.'+(frac if frac else '0'))
+    return None
 
 def _process_frame(args):
     '''
@@ -374,6 +391,10 @@ def main():
             #since the CSV already lives inside/next to the LEVEL1 folder
             summary_row_label = '_'.join(os.path.relpath(root,main_dir).split(os.sep))
 
+            #pCa value parsed out of a pCaX/pCaX-Y folder anywhere in this row's
+            #path, if one exists (e.g. .../pCa4-7/... -> 4.7)
+            summary_row_pca = extract_pca(root)
+
             out_vl_png_fname  = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_length_velocity.png'
             out_vl_txt_fname  = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_'
             out_path_fname    = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_paths'
@@ -474,7 +495,7 @@ def main():
                 combined_stats.append([num_points_filtered,top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_all, mean_len_filtered, mean_len_mobile])
 
                 #Add a row to the per-movie summary CSV data
-                summary_rows.append([summary_row_label, top_5_velocity, MVEL_filtered, MVEL, percent_stuck, mean_len_filtered, std_len_filtered, skew_len_filtered] + [param_values[c] for c in param_columns])
+                summary_rows.append([summary_row_label, summary_row_pca, top_5_velocity, MVEL_filtered, MVEL, percent_stuck, mean_len_filtered, std_len_filtered, skew_len_filtered] + [param_values[c] for c in param_columns])
 
                 #Write length-velocity data
                 new_motility.write_length_velocity(extra_fname=out_vl_txt_fname)
@@ -562,12 +583,15 @@ def main():
     s_stats.close()
 
     #Write the per-movie summary CSV - one copy in the Level1 input directory,
-    #one copy in the top of the corresponding outputs folder
+    #one copy in the top of the corresponding outputs folder. Named after the
+    #LEVEL1 directory itself rather than the generic "summary.csv", so results
+    #from different LEVEL1 runs don't all share the same filename
     if len(summary_rows) > 0:
-        summary_header = ['filename','top5_velocity_nm_s','MVEL_filtered_nm_s','MVEL_unfiltered_nm_s','percent_stuck','FIL_LENGTH_mean_nm','FIL_LENGTH_std_nm','FIL_LENGTH_skew']+param_columns
+        summary_header = ['filename','pCa','top5_velocity_nm_s','MVEL_filtered_nm_s','MVEL_unfiltered_nm_s','percent_stuck','FIL_LENGTH_mean_nm','FIL_LENGTH_std_nm','FIL_LENGTH_skew']+param_columns
 
-        summary_csv_paths = [os.path.join(main_dir,'summary.csv'),
-                              os.path.join(cwd,'outputs',main_out_dir,'summary.csv')]
+        summary_csv_name  = os.path.basename(main_dir)+'.csv'
+        summary_csv_paths = [os.path.join(main_dir,summary_csv_name),
+                              os.path.join(cwd,'outputs',main_out_dir,summary_csv_name)]
 
         for summary_csv_path in summary_csv_paths:
             with open(summary_csv_path,'w',newline='') as summary_f:
