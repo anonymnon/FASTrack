@@ -8,11 +8,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-def hill_func(pCa, Vmax, pCa50, n):
-    return Vmax / (1.0 + 10.0 ** (n * (pCa - pCa50)))
+def hill_func(pCa, Smin, Smax, Ca50, n):
+    Ca = 10.0 ** (-pCa)
+    return Smin + (Smax - Smin) * Ca**n / (Ca50**n + Ca**n)
 
 
-def run_hill_fit(data_file):
+def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
     parent_dir  = os.path.dirname(os.path.abspath(data_file))
     folder_name = os.path.basename(parent_dir)
     out_prefix  = os.path.join(parent_dir, folder_name)
@@ -26,36 +27,49 @@ def run_hill_fit(data_file):
         sys.exit(f"Unsupported file format '{ext}'. Use .csv, .xls, or .xlsx")
 
     # Case-insensitive column matching
-    col_map = {c.strip().lower(): c for c in df.columns}
-    if 'pca' not in col_map or 'speed' not in col_map:
-        sys.exit("File must contain columns named 'pCa' and 'speed' (case-insensitive)")
-    df = df.rename(columns={col_map['pca']: 'pca', col_map['speed']: 'speed'})
+    col_map  = {c.strip().lower(): c for c in df.columns}
+    pca_key  = pca_col.strip().lower()
+    spd_key  = speed_col.strip().lower()
+    if pca_key not in col_map:
+        sys.exit(f"pCa column '{pca_col}' not found. Use -p to specify the column name.")
+    if spd_key not in col_map:
+        available = [c for c in df.columns if any(k in c.lower() for k in ('vel','speed','spd'))]
+        hint = f"  Available velocity columns: {available}" if available else ""
+        sys.exit(f"Speed column '{speed_col}' not found.{hint}\nUse -c to specify the column name.")
 
-    # Average duplicates
-    grouped    = df.groupby('pca')['speed'].mean().reset_index().sort_values('pca')
-    pCa_data   = grouped['pca'].values.astype(float)
-    speed_data = grouped['speed'].values.astype(float)
+    df = df[[col_map[pca_key], col_map[spd_key]]].copy()
+    df.columns = ['pca', 'speed']
+    df = df.dropna()
+    df['pca']   = df['pca'].astype(float)
+    df['speed'] = df['speed'].astype(float)
 
-    if len(pCa_data) < 3:
-        sys.exit("At least 3 distinct pCa values are required for fitting")
+    # Average any duplicate pCa values
+    grouped    = df.groupby('pca')['speed'].mean().sort_index()
+    pCa_data   = grouped.index.values
+    speed_data = grouped.values
 
-    # Initial guesses
-    Vmax0   = float(speed_data.max())
-    pCa50_0 = float(pCa_data.mean())
-    n0      = 2.0
+    if len(pCa_data) < 4:
+        sys.exit("At least 4 distinct pCa values are required for the 4-parameter fit")
+
+    # Initial guesses and bounds
+    Smin0  = float(speed_data.min())
+    Smax0  = float(speed_data.max())
+    Ca50_0 = 10.0 ** (-float(np.median(pCa_data)))
+    n0     = 2.0
 
     try:
         popt, pcov = curve_fit(
             hill_func, pCa_data, speed_data,
-            p0=[Vmax0, pCa50_0, n0],
-            bounds=([0, pCa_data.min() - 2, 0.1],
-                    [Vmax0 * 5, pCa_data.max() + 2, 20]),
-            maxfev=20000
+            p0=[Smin0, Smax0, Ca50_0, n0],
+            bounds=([0,       Smax0 * 0.5, 1e-10, 0.1],
+                    [Smin0 * 3, Smax0 * 3,  1e-3,  20.0]),
+            maxfev=50000
         )
     except RuntimeError as e:
         sys.exit(f"Curve fitting failed: {e}")
 
-    Vmax_fit, pCa50_fit, n_fit = popt
+    Smin_fit, Smax_fit, Ca50_fit, n_fit = popt
+    pCa50_fit   = -np.log10(Ca50_fit)
     perr        = np.sqrt(np.diag(pcov))
     speed_pred  = hill_func(pCa_data, *popt)
     ss_res      = np.sum((speed_data - speed_pred) ** 2)
@@ -69,9 +83,11 @@ def run_hill_fit(data_file):
         f.write(f"Hill Fit Results: {os.path.basename(data_file)}\n")
         f.write("=" * 60 + "\n\n")
         f.write("Fitted Parameters\n")
-        f.write(f"  Vmax             = {Vmax_fit:10.4f} +/- {perr[0]:.4f} nm/s\n")
-        f.write(f"  pCa50            = {pCa50_fit:10.4f} +/- {perr[1]:.4f}\n")
-        f.write(f"  n (Hill coeff.)  = {n_fit:10.4f} +/- {perr[2]:.4f}\n\n")
+        f.write(f"  Smin             = {Smin_fit:10.4f} +/- {perr[0]:.4f} nm/s\n")
+        f.write(f"  Smax             = {Smax_fit:10.4f} +/- {perr[1]:.4f} nm/s\n")
+        f.write(f"  Ca50             = {Ca50_fit:10.4e} +/- {perr[2]:.4e} M\n")
+        f.write(f"  pCa50            = {pCa50_fit:10.4f}\n")
+        f.write(f"  n (Hill coeff.)  = {n_fit:10.4f} +/- {perr[3]:.4f}\n\n")
         f.write("Goodness of Fit\n")
         f.write(f"  R²   = {r_squared:.6f}\n")
         f.write(f"  RMSE = {rmse:.4f} nm/s\n\n")
@@ -91,6 +107,7 @@ def run_hill_fit(data_file):
             label='Data (mean per pCa)')
     ax.plot(pCa_smooth, speed_smooth, '-', color='red', linewidth=2,
             label=f'Hill fit  pCa50={pCa50_fit:.2f}  n={n_fit:.2f}  R²={r_squared:.4f}')
+    ax.invert_xaxis()
     ax.set_xlabel('pCa')
     ax.set_ylabel('Speed (nm/s)')
     ax.set_title(folder_name)
