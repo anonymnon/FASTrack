@@ -48,11 +48,18 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
     pCa_data   = grouped.index.values
     speed_data = grouped.values
 
+    # Subtract pCa 9 baseline so that no-calcium speed = 0
+    pca9_mask = np.isclose(pCa_data, 9.0)
+    if pca9_mask.any():
+        speed_data = speed_data - speed_data[pca9_mask][0]
+    else:
+        print("Warning: no pCa 9 data found — baseline subtraction skipped")
+
     if len(pCa_data) < 4:
         sys.exit("At least 4 distinct pCa values are required for the 4-parameter fit")
 
     # Initial guesses and bounds
-    Smin0  = float(speed_data.min())
+    Smin0  = 0.0
     Smax0  = float(speed_data.max())
     Ca50_0 = 10.0 ** (-float(np.median(pCa_data)))
     n0     = 2.0
@@ -61,8 +68,8 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
         popt, pcov = curve_fit(
             hill_func, pCa_data, speed_data,
             p0=[Smin0, Smax0, Ca50_0, n0],
-            bounds=([0,       Smax0 * 0.5, 1e-10, 0.1],
-                    [Smin0 * 3, Smax0 * 3,  1e-3,  20.0]),
+            bounds=([-Smax0 * 0.2, Smax0 * 0.5, 1e-10, 0.1],
+                    [ Smax0 * 0.2, Smax0 * 3,  1e-3,  20.0]),
             maxfev=50000
         )
     except RuntimeError as e:
