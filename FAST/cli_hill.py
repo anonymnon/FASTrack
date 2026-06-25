@@ -19,16 +19,18 @@ def main():
              '------------------------------------------------------------------------']
 
     parser = argparse.ArgumentParser(description='', usage='\n'.join(usage))
-    parser.add_argument('-d', help='CSV or Excel file with pCa and speed columns', required=True)
-    parser.add_argument('-c', help='Name of the speed column (Default: speed)', default='speed')
-    parser.add_argument('-p', help='Name of the pCa column (Default: pCa)', default='pCa')
+    parser.add_argument('-d',  help='CSV or Excel file with pCa and speed columns', required=True)
+    parser.add_argument('-c',  help='Name of the speed column (Default: speed)', default='speed')
+    parser.add_argument('-p',  help='Name of the pCa column (Default: pCa)', default='pCa')
+    parser.add_argument('-bs', action='store_true', default=False,
+                        help='Subtract pCa 9 mean speed as baseline so no-calcium speed = 0')
     args = parser.parse_args()
     parser.print_help()
 
     if not os.path.isfile(args.d):
         sys.exit(f"\nFile not found: {args.d}")
 
-    hill.run_hill_fit(args.d, speed_col=args.c, pca_col=args.p)
+    hill.run_hill_fit(args.d, speed_col=args.c, pca_col=args.p, baseline_subtract=args.bs)
 
 if __name__ == "__main__":
     main()

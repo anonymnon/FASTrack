@@ -21,7 +21,7 @@ def hill_func(pCa, Smin, Smax, Ca50, n):
     return Smin + (Smax - Smin) * Ca**n / (Ca50**n + Ca**n)
 
 
-def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
+def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=False):
     parent_dir  = os.path.dirname(os.path.abspath(data_file))
     folder_name = os.path.basename(parent_dir)
     out_prefix  = os.path.join(parent_dir, folder_name)
@@ -56,12 +56,13 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa'):
     pCa_data   = grouped.index.values
     speed_data = grouped.values
 
-    # Subtract pCa 9 baseline so that no-calcium speed = 0
-    pca9_mask = np.isclose(pCa_data, 9.0)
-    if pca9_mask.any():
-        speed_data = speed_data - speed_data[pca9_mask][0]
-    else:
-        print("Warning: no pCa 9 data found — baseline subtraction skipped")
+    # Optionally subtract pCa 9 baseline so that no-calcium speed = 0
+    if baseline_subtract:
+        pca9_mask = np.isclose(pCa_data, 9.0)
+        if pca9_mask.any():
+            speed_data = speed_data - speed_data[pca9_mask][0]
+        else:
+            print("Warning: no pCa 9 data found — baseline subtraction skipped")
 
     if len(pCa_data) < 4:
         sys.exit("At least 4 distinct pCa values are required for the 4-parameter fit")
