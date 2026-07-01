@@ -24,7 +24,8 @@ def hill_func(pCa, Smin, Smax, Ca50, n):
 def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=False):
     parent_dir  = os.path.dirname(os.path.abspath(data_file))
     folder_name = os.path.basename(parent_dir)
-    out_prefix  = os.path.join(parent_dir, folder_name)
+    csv_stem    = os.path.splitext(os.path.basename(data_file))[0]
+    out_prefix  = os.path.join(parent_dir, folder_name + '_' + csv_stem)
 
     ext = os.path.splitext(data_file)[1].lower()
     if ext in ('.xlsx', '.xls'):
@@ -131,7 +132,7 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=
     ax.invert_xaxis()
     ax.set_xlabel('pCa')
     ax.set_ylabel('Speed (nm/s)')
-    ax.set_title(folder_name)
+    ax.set_title(folder_name + '_' + csv_stem)
     ax.legend(fontsize=8)
     plt.tight_layout()
 

@@ -274,9 +274,9 @@ After installation, don't move the `FASTrack` directory to a different location 
 
     where Ca = 10^(−pCa). The four fitted parameters are **S_min** (minimum speed), **S_max** (maximum speed), **Ca50** (the calcium concentration at half-maximal activation), and **n** (the Hill cooperativity coefficient). **pCa50** (= −log₁₀Ca50) is derived from Ca50 and reported with its own 95% CI via error propagation.
 
-- Outputs are written to the same folder as the input file, named after that folder:
-    - `FOLDER_NAME.txt` — fitted parameters with 95% confidence intervals, R², RMSE, and the averaged data table.
-    - `FOLDER_NAME.pdf` / `FOLDER_NAME.png` — scatter plot of the averaged data points with the fitted Hill curve overlaid. The pCa x-axis is inverted (high pCa on the left) following the standard convention.
+- Outputs are written to the same folder as the input file, named after the parent folder plus the input filename (without extension), e.g. `FOLDER_NAME_csvname.txt` for an input file `csvname.csv` inside `FOLDER_NAME/`:
+    - `FOLDER_NAME_csvname.txt` — fitted parameters with 95% confidence intervals, R², RMSE, and the averaged data table.
+    - `FOLDER_NAME_csvname.pdf` / `FOLDER_NAME_csvname.png` — scatter plot of the averaged data points with the fitted Hill curve overlaid. The pCa x-axis is inverted (high pCa on the left) following the standard convention.
 
 ## Loaded in vitro motility analysis
 
