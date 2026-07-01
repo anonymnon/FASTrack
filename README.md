@@ -253,6 +253,31 @@ After installation, don't move the `FASTrack` directory to a different location 
 
 - A summary CSV file, named after the **LEVEL1** directory (e.g. ```LEVEL1.csv```, not the generic ```summary.csv```), is also generated for each run, with one row per processed movie (labeled by its **LEVEL2_LEVEL3_LEVEL4** path, e.g. ```CaMy1_Rep1_1_1_MMStack_Pos0.ome```) and columns for ```pCa```, ```TOP5%``` velocity, filtered/unfiltered ```MVEL```, percent of stuck filaments, mean/standard-deviation/skewness of the filtered filament lengths (```FIL-LENGTH```), and every user-adjustable parameter value used for that run (```-px```, ```-p```, ```-n```, ```-pt```, ```-ymax```, ```-xmax```, ```-cl```, ```-fx```, ```-maxd```, ```-minv```, ```-oscore```, ```-lascore```, ```-dlascore```, ```-ofps```, ```-sfps```, ```-m```, ```-om```, ```-sm```, ```-f```, ```-r```). The ```pCa``` column is populated from a ```pCaX``` or ```pCaX-Y``` folder anywhere in that row's path (```X```,```Y``` integers), e.g. a path containing ```pCa4``` gives ```4.0```, and ```pCa4-7``` gives ```4.7```; rows with no such folder are left blank. A copy is written both to the **LEVEL1** input directory and to the top of the corresponding **outputs/LEVEL1** (or ```outputs/LEVEL1-2```, etc.) folder.
 
+## Hill equation fitting for pCa vs. speed data
+
+- The **hill** command fits a 4-parameter Hill equation to pCa vs. speed data and reports the fitted parameters with 95% confidence intervals.
+
+- Provide a CSV or Excel (`.xlsx`/`.xls`) file that contains at minimum a column of pCa values and a column of speed values. If multiple rows share the same pCa value they are averaged before fitting.
+
+    ```
+    hill -d FILE [-c SPEED_COLUMN] [-p PCA_COLUMN] [-bs]
+    ```
+
+    - **FILE** (`-d`): path to the CSV or Excel input file **(required)**.
+    - **SPEED_COLUMN** (`-c`): name of the speed column in the file **(Default: `speed`)**.
+    - **PCA_COLUMN** (`-p`): name of the pCa column in the file **(Default: `pCa`)**.
+    - **`-bs`**: subtract the mean speed at pCa 9 from all speed values before fitting, so the baseline (no-calcium) speed is forced to zero **(Default: off)**.
+
+- The 4-parameter Hill equation used is:
+
+    > Speed = S_min + (S_max − S_min) × Ca^n / (Ca50^n + Ca^n)
+
+    where Ca = 10^(−pCa). The four fitted parameters are **S_min** (minimum speed), **S_max** (maximum speed), **Ca50** (the calcium concentration at half-maximal activation), and **n** (the Hill cooperativity coefficient). **pCa50** (= −log₁₀Ca50) is derived from Ca50 and reported with its own 95% CI via error propagation.
+
+- Outputs are written to the same folder as the input file, named after that folder:
+    - `FOLDER_NAME.txt` — fitted parameters with 95% confidence intervals, R², RMSE, and the averaged data table.
+    - `FOLDER_NAME.pdf` / `FOLDER_NAME.png` — scatter plot of the averaged data points with the fitted Hill curve overlaid. The pCa x-axis is inverted (high pCa on the left) following the standard convention.
+
 ## Loaded in vitro motility analysis
 
 - FAST is designed for high throughput analysis of loaded in vitro motility movies. For the experimental setup and the details of the loaded motility analysis please read through [our paper][1].
