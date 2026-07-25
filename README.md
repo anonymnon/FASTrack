@@ -27,6 +27,7 @@ This fork started as a minor update to Tural Aksel's original FASTrack program t
 - Fixed movie-rendering code (`-om`/`-sm`) that shelled out to the POSIX-only `cp` command with POSIX-only shell quoting, which silently broke on Windows; replaced with cross-platform `subprocess.run`/`shutil.copy`.
 - The per-movie summary CSV gains a `pCa` column (populated from a `pCaX`/`pCaX-Y` folder anywhere in a row's path, e.g. `pCa4` -> `4.0`, `pCa4-7` -> `4.7`) and is now named after the **LEVEL1** directory instead of the generic `summary.csv`.
 - General dependency, packaging, and warning/noise cleanup, including removing the unused legacy `bin/motility.py` script and trimming unused Python dependencies (`networkx`, `PyWavelets`).
+- Fixed a crash (`IndexError` in `make_frame_links`) when a movie's `metadata.txt` has fewer recorded timestamps than image frames (see "Missing frame timestamps" below) - the missing timestamp is now extrapolated instead of crashing the whole analysis run.
 
 **No changes were made to the core scientific calculations/algorithms** beyond the bug fixes noted above, which corrected unintended deviations from the original scoring logic rather than introducing new analysis behavior. **You should still cite the original paper by Tural Aksel** (see citation above) if you use this software or its outputs.
 
@@ -172,6 +173,8 @@ After installation, don't move the `FASTrack` directory to a different location 
 - **FRAMERATE** is the frame rate of the movies in frames per second **(Default: 1)**. Process movies with different frame rates separately.
 - **SIZELOWERBOUND** is the lower bound for the size (Mbytes) of the tiff stacks to be converted into individual tiffs **(Default: 6)**. Only tiff stacks bigger than SIZELOWERBOUND are processed.
 - **OVERWRITE**: if a stack has already been exploded into individual frames in a previous run, `stack2tifs` skips it and prints a notice by default. Pass `-o yes` to force re-exploding/overwriting those frames instead (also prints a notice). **(Default: no)**.
+
+- **Missing frame timestamps**: occasionally a movie's `metadata.txt` ends up with fewer `ElapsedTime-ms` entries than it has image frames - a micro-manager quirk where the last frame's image gets saved but its timestamp never gets written (usually because acquisition was stopped right at the end). When **fast** needs a timestamp beyond the end of what was recorded, it extrapolates one using the average interval between the timestamps that *were* recorded, rather than failing. This only ever affects the frame(s) missing a timestamp - every other frame pair still uses its real, recorded elapsed time.
 
 ## Analysis of movies using FAST
 

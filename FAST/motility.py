@@ -753,9 +753,29 @@ class Motility:
         
         #Time difference between frame1 and frame2
         if len(self.elapsed_times) > 0:
-            self.dt      = self.elapsed_times[self.frame2.frame_no] - self.elapsed_times[self.frame1.frame_no]
-            frame1_time  = self.elapsed_times[self.frame1.frame_no]
-            frame2_time  = self.elapsed_times[self.frame2.frame_no]
+            num_elapsed = len(self.elapsed_times)
+
+            #metadata.txt can end up short of the actual frame count if the
+            #last frame's image was saved but its timestamp never got
+            #written (a MicroManager quirk when acquisition is cut short) -
+            #extrapolate using the average interval between the timestamps
+            #that were recorded, rather than indexing past the end of the array
+            if num_elapsed > 1:
+                mean_interval = (self.elapsed_times[-1]-self.elapsed_times[0])/(num_elapsed-1)
+            else:
+                mean_interval = self.dt
+
+            if self.frame1.frame_no < num_elapsed:
+                frame1_time = self.elapsed_times[self.frame1.frame_no]
+            else:
+                frame1_time = self.elapsed_times[-1] + mean_interval*(self.frame1.frame_no-num_elapsed+1)
+
+            if self.frame2.frame_no < num_elapsed:
+                frame2_time = self.elapsed_times[self.frame2.frame_no]
+            else:
+                frame2_time = self.elapsed_times[-1] + mean_interval*(self.frame2.frame_no-num_elapsed+1)
+
+            self.dt = frame2_time - frame1_time
         else:
             frame1_time  = self.frame1.frame_no*self.dt
             frame2_time  = self.frame2.frame_no*self.dt
