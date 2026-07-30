@@ -28,6 +28,7 @@ This fork started as a minor update to Tural Aksel's original FASTrack program t
 - The per-movie summary CSV gains a `pCa` column (populated from a `pCaX`/`pCaX-Y` folder anywhere in a row's path, e.g. `pCa4` -> `4.0`, `pCa4-7` -> `4.7`) and is now named after the **LEVEL1** directory instead of the generic `summary.csv`.
 - General dependency, packaging, and warning/noise cleanup, including removing the unused legacy `bin/motility.py` script and trimming unused Python dependencies (`networkx`, `PyWavelets`).
 - Fixed a crash (`IndexError` in `make_frame_links`) when a movie's `metadata.txt` has fewer recorded timestamps than image frames (see "Missing frame timestamps" below) - the missing timestamp is now extrapolated instead of crashing the whole analysis run.
+- `hill` gains a `-d2` option to fit and plot a second pCa/speed file alongside the first, plus a `-nl` option to normalize each curve to its own 0-1 speed range for shape-only comparisons (see "Hill equation fitting" below). Both `hill` plots now report the fitted speed at pCa50, label curves with a short name truncated to the input filename's first underscore-delimited token (also used for output filenames), and no longer show a separate legend entry for the underlying data points.
 
 **No changes were made to the core scientific calculations/algorithms** beyond the bug fixes noted above, which corrected unintended deviations from the original scoring logic rather than introducing new analysis behavior. **You should still cite the original paper by Tural Aksel** (see citation above) if you use this software or its outputs.
 
@@ -271,15 +272,33 @@ After installation, don't move the `FASTrack` directory to a different location 
     - **PCA_COLUMN** (`-p`): name of the pCa column in the file **(Default: `pCa`)**.
     - **`-bs`**: subtract the mean speed at pCa 9 from all speed values before fitting, so the baseline (no-calcium) speed is forced to zero **(Default: off)**.
 
+- To compare two conditions on the same graph, pass a second file with `-d2`. Each file is still fit independently (its own Hill curve, its own reported parameters), but both are drawn on one plot and reported in one text file:
+
+    ```
+    hill -d FILE1 -d2 FILE2 [-c2 SPEED_COLUMN2] [-p2 PCA_COLUMN2] [-col1 COLOR1] [-col2 COLOR2] [-bs] [-nl]
+    ```
+
+    - **FILE2** (`-d2`): path to a second CSV or Excel input file, fit and plotted alongside `-d` **(optional - omitting it runs the original single-file behavior)**.
+    - **SPEED_COLUMN2** / **PCA_COLUMN2** (`-c2`/`-p2`): column names for `-d2`, in case it doesn't share the same column names as `-d` **(Default: same as `-c`/`-p`)**.
+    - **`-bs`** applies to both files when `-d2` is given, and is ignored (with a notice) if `-nl` is also given.
+    - **COLOR1** / **COLOR2** (`-col1`/`-col2`): line and marker color for `-d` and `-d2` respectively **(Default: `black` for `-d`, `red` for `-d2`)**.
+    - **`-nl`**: normalize each curve to its own speed range before fitting/plotting - see "Normalized graphs" below.
+
 - The 4-parameter Hill equation used is:
 
     > Speed = S_min + (S_max − S_min) × Ca^n / (Ca50^n + Ca^n)
 
-    where Ca = 10^(−pCa). The four fitted parameters are **S_min** (minimum speed), **S_max** (maximum speed), **Ca50** (the calcium concentration at half-maximal activation), and **n** (the Hill cooperativity coefficient). **pCa50** (= −log₁₀Ca50) is derived from Ca50 and reported with its own 95% CI via error propagation.
+    where Ca = 10^(−pCa). The four fitted parameters are **S_min** (minimum speed), **S_max** (maximum speed), **Ca50** (the calcium concentration at half-maximal activation), and **n** (the Hill cooperativity coefficient). **pCa50** (= −log₁₀Ca50) is derived from Ca50 and reported with its own 95% CI via error propagation. The **speed at pCa50** (the curve's midpoint, exactly (S_min + S_max) / 2 regardless of Ca50/n) is reported alongside the fitted parameters, in the plot legend, and with its own 95% CI in the text file where the covariance between S_min and S_max makes that computable.
 
-- Outputs are written to the same folder as the input file, named after the parent folder plus the input filename (without extension), e.g. `FOLDER_NAME_csvname.txt` for an input file `csvname.csv` inside `FOLDER_NAME/`:
-    - `FOLDER_NAME_csvname.txt` — fitted parameters with 95% confidence intervals, R², RMSE, and the averaged data table.
-    - `FOLDER_NAME_csvname.pdf` / `FOLDER_NAME_csvname.png` — scatter plot of the averaged data points with the fitted Hill curve overlaid. The pCa x-axis is inverted (high pCa on the left) following the standard convention.
+- The plot legend only ever shows the fitted curve(s), labeled with a short name plus the fit summary (e.g. `WT: pCa50=... n=... R²=... Smax=... S(pCa50)=...`), not a separate entry for the underlying data points - the averaged data points are still drawn on the plot, just unlabeled. The short name is the input filename truncated to whatever comes before its first underscore (e.g. `WT_pCa_speed_extraSlides.csv` → `WT`), so descriptive input filenames don't clutter the legend. The legend itself is placed below the plot area so it never overlaps the data/curves or narrows the plot.
+
+- Outputs are written to the same folder as the first input file, named using that same short, truncated name(s):
+    - Single-file (`-d` only), e.g. `WT_pCa_speed_extraSlides.csv`: `WT.txt` / `.pdf` / `.png`.
+    - Two-file comparison (`-d` + `-d2`), e.g. `WT_pCa_speed_extraSlides.csv` and `E239G_pCa_speed_extraSlides.csv`: `WT_E239G.txt` / `.pdf` / `.png`.
+    - The `.txt` file contains fitted parameters with 95% confidence intervals (including speed at pCa50), R², RMSE, and the averaged data table - one such block per file when comparing two.
+    - The `.pdf` / `.png` show the averaged data points with the fitted Hill curve(s) overlaid. The pCa x-axis is inverted (high pCa on the left) following the standard convention.
+
+- **Normalized graphs (`-nl`)**: rescales each curve's speed values to its own [0, 1] range (that curve's own minimum → 0, own maximum → 1) before fitting and plotting - useful for comparing the *shape* of two curves (pCa50, cooperativity) side by side without their absolute speeds (which can differ a lot between conditions) dominating the comparison. Each curve is normalized independently: if `WT` has a maximum of 500 nm/s and `E239G` has a maximum of 1000 nm/s, both still scale to 1.0 on their own curve. Since normalization already forces each curve's own baseline to 0, `-bs` is ignored (with a printed notice) whenever `-nl` is given. Output filenames get a `_nl` suffix, e.g. `WT_E239G_nl.txt` / `.pdf` / `.png`, and the `.txt` file reports the fit in these same normalized (unitless, 0-1) terms rather than nm/s.
 
 ## Loaded in vitro motility analysis
 
