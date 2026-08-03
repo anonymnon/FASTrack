@@ -3,6 +3,7 @@ import sys
 import re
 import csv
 import time
+import shutil
 import numpy as np
 import argparse
 import warnings
@@ -34,6 +35,33 @@ def extract_pca(path):
             whole,frac = m.group(1),m.group(2)
             return float(whole+'.'+(frac if frac else '0'))
     return None
+
+def _write_params_marker(fname,values):
+    '''
+    Record the parameter values that produced a cached result in fname, so a
+    later run can tell whether it's still safe to reuse that result.
+    '''
+    with open(fname,'w') as f:
+        for key in sorted(values):
+            f.write('%s=%r\n'%(key,values[key]))
+
+def _params_marker_matches(fname,values):
+    '''
+    True if fname exists and records exactly the parameter values in values -
+    used to invalidate a cached analysis/combination when the user reruns
+    with different settings (e.g. a different -px or -minv) rather than just
+    resuming an interrupted run with the same settings.
+    '''
+    if not os.path.isfile(fname):
+        return False
+    recorded = {}
+    with open(fname) as f:
+        for line in f:
+            if '=' not in line:
+                continue
+            key,val = line.rstrip('\n').split('=',1)
+            recorded[key] = val
+    return all(recorded.get(key) == repr(values[key]) for key in values)
 
 def _process_frame(args):
     '''
@@ -130,6 +158,15 @@ def main():
     overlap_score_cutoff        = args_dict['oscore']
     log_area_score_cutoff       = args_dict['lascore']
     diff_log_area_score_cutoff  = args_dict['dlascore']
+
+    #Parameters that change the raw per-filament results themselves (not just
+    #how they're plotted/filtered afterwards) - a cached "already analyzed"
+    #result (see below) is only reused if it was produced with these exact
+    #values, so resuming a crashed/interrupted run never silently mixes
+    #results from two different parameter sets
+    analysis_param_values = {'px':pixel_size, 'n':num_frames_ave, 'maxd':max_velocity,
+                              'minv':min_velocity, 'oscore':overlap_score_cutoff,
+                              'lascore':log_area_score_cutoff, 'dlascore':diff_log_area_score_cutoff}
 
     #Per-movie rows for the summary CSV, plus the user-modifiable parameter
     #values that get appended as columns to every row
@@ -256,8 +293,14 @@ def main():
         #Create the top-level directory in outputs folder
         top_directory      = split_path_entries[0]
     
-        #Check for either *.tif or *.npy files for folders to be processed 
-        if len(subFolders) == 0 and (len(list(filter(lambda x:x[-4:] == '.tif',files))) > 0 or len(list(filter(lambda x:x[:6] == 'filXYs',files))) > 0):
+        #A leaf directory is only ready to process if it has a .in frame-list
+        #file (written above, only for folders whose tifs are already
+        #exploded/named by stack2tifs) or already has saved per-frame
+        #filament data from a previous run - not just any *.tif file, since
+        #an un-exploded raw stack folder (e.g. a MicroManager "Default"
+        #acquisition directory) has .tif files too but was deliberately
+        #skipped above and never got a .in file
+        if len(subFolders) == 0 and (os.path.isfile(root + '.in') or len(list(filter(lambda x:x[:6] == 'filXYs',files))) > 0):
             entries = root.split(os.sep)
             top_folder = '/'.join(entries[:-1])
             exp_num    = entries[-1]
@@ -282,13 +325,19 @@ def main():
     for top_root in sorted_top_roots:
         #Combined statistics
         combined_stats        = []
-    
+
         #Combined full length velocity data
         combined_full_len_vel = []
-    
+
         #Combined max length velocity data
         combined_max_len_vel  = []
-    
+
+        #True if any movie under this top_root needed a real (re)analysis
+        #this run - if none did (a fully-resumed top_root), the combining
+        #step below can safely reuse its own cached result instead of
+        #re-rendering it
+        top_root_reanalyzed = False
+
         #Final - folder : lowest level folder
         data_info        = os.path.relpath(top_root,main_dir_parent).split(os.sep)
         top_folder       = data_info[-1]
@@ -343,20 +392,14 @@ def main():
         top_folder       = data_info[-1]
         root_header      = '_'.join(data_info)
 
-        #Combined length-velocity
-        combined_vl_png_name = cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_length_velocity.png'
-    
-        #If combined analysis is performed skip
-        if not recalculate and not force_analysis and os.path.isfile(combined_vl_png_name):
-            continue
-    
         #Change directory to the location that the analysis will be performed
         os.chdir(top_root)
 
         #Long-lived worker pool, reused across every movie folder under this
         #top_root so the FAST/numpy/skimage import cost is paid once per
-        #worker process rather than once per frame
-        pool = mp.Pool()
+        #worker process rather than once per frame. Created lazily below so a
+        #top_root that's fully resumed from a previous run never pays for it.
+        pool = None
 
         for final_folder in process_folders[top_root]:
             #Construct root name
@@ -398,11 +441,31 @@ def main():
             out_vl_png_fname  = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_length_velocity.png'
             out_vl_txt_fname  = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_'
             out_path_fname    = cwd+'/outputs/'+main_out_dir+'/'+file_header+'_paths'
-        
+
+            #A movie folder counts as already fully analyzed (e.g. by a run
+            #that crashed or was interrupted after finishing this movie but
+            #before finishing the whole batch) if a previous run finished the
+            #whole per-filament pipeline here - paths_2D.png plus the raw
+            #length-velocity dumps written by write_length_velocity - with
+            #the same analysis-affecting parameters as this run, and, only
+            #when this run also asks for a movie, that movie file already
+            #exists too, since the resume path below never reloads the frame
+            #links a movie needs to be (re)rendered
+            paths_2D_fname     = final_folder+'/paths_2D.png'
+            full_len_vel_fname = final_folder+'/full_length_velocity.txt'
+            max_len_vel_fname  = final_folder+'/max_length_velocity.txt'
+            params_fname       = final_folder+'/analysis_params.txt'
+            already_analyzed = (not force_analysis and not recalculate
+                                and os.path.isfile(paths_2D_fname)
+                                and os.path.isfile(full_len_vel_fname)
+                                and os.path.isfile(max_len_vel_fname)
+                                and _params_marker_matches(params_fname,analysis_param_values)
+                                and (not make_movie or os.path.isfile(final_folder+'/filament_tracks.avi'))
+                                and (not make_overlay_movie or os.path.isfile(final_folder+'/overlay_movie.mp4'))
+                                and (not make_skeleton_movie or os.path.isfile(final_folder+'/skeleton_movie.mp4')))
+
             #Input filename listing the frame numbers to process
             input_file   = final_folder+'.in'
-
-            print('Processing tif files in %s'%(root))
 
             #Start the timer
             start_t      = time.time()
@@ -419,53 +482,79 @@ def main():
                 print('Only %d frame(s) in %s - skipping (need at least 2 frames to calculate velocities)'%(len(frame_nos),root))
                 continue
 
-            #Parallel-execution of filament extraction of all the frames,
-            #using the long-lived worker pool created above
-            frame_args = [(final_folder,'img_000000',tail_tif,no,force_analysis) for no in frame_nos]
-            pool.map(_process_frame,frame_args)
-
             #Determine the number of frames in a movie
             number_of_frames = len(frame_nos)
-        
-            if len(frame_nos) > 0:
-                #Create the Motility object
-                new_motility                = motility.Motility()
-                new_motility.dx             = 1.0*pixel_size
-                new_motility.max_velocity   = 1.0*max_velocity/pixel_size
-                new_motility.num_frames     = len(frame_nos)
-                new_motility.directory      = final_folder
-                new_motility.header         = 'img_000000'
-                new_motility.tail           = tail_tif
-                new_motility.force_analysis = force_analysis
-                new_motility.width          = frame_width
-                new_motility.height         = frame_height
-                new_motility.min_velocity   = min_velocity
 
-                #Assign the hard-coded parameters
-                new_motility.overlap_score_cutoff       = overlap_score_cutoff
-                new_motility.log_area_score_cutoff      = log_area_score_cutoff
-                new_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
-            
+            #Create the Motility object
+            new_motility                = motility.Motility()
+            new_motility.dx             = 1.0*pixel_size
+            new_motility.max_velocity   = 1.0*max_velocity/pixel_size
+            new_motility.num_frames     = len(frame_nos)
+            new_motility.directory      = final_folder
+            new_motility.header         = 'img_000000'
+            new_motility.tail           = tail_tif
+            new_motility.force_analysis = force_analysis
+            new_motility.width          = frame_width
+            new_motility.height         = frame_height
+            new_motility.min_velocity   = min_velocity
+
+            #Assign the hard-coded parameters
+            new_motility.overlap_score_cutoff       = overlap_score_cutoff
+            new_motility.log_area_score_cutoff      = log_area_score_cutoff
+            new_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
+
+            if already_analyzed:
+                print('Already analyzed %s - resuming past it (use -f or -r to redo)'%(root))
+
+                #Reuse the previously computed length-velocity data instead of
+                #re-extracting and re-linking every frame
+                new_motility.full_len_vel = np.atleast_2d(np.loadtxt(full_len_vel_fname))
+                new_motility.max_len_vel  = np.atleast_2d(np.loadtxt(max_len_vel_fname))
+
+                #Copy the existing plot/movies into this run's outputs folder
+                #rather than regenerating them
+                shutil.copy(paths_2D_fname,out_path_fname+'_2D.png')
+
+                if make_overlay_movie:
+                    shutil.copy(final_folder+'/overlay_movie.mp4',out_vl_txt_fname+'overlay_movie.mp4')
+
+                if make_skeleton_movie:
+                    shutil.copy(final_folder+'/skeleton_movie.mp4',out_vl_txt_fname+'skeleton_movie.mp4')
+
+                if make_movie:
+                    shutil.copy(final_folder+'/filament_tracks.avi',out_vl_txt_fname+'filament_tracks.avi')
+            else:
+                top_root_reanalyzed = True
+                print('Processing tif files in %s'%(root))
+
+                #Parallel-execution of filament extraction of all the frames,
+                #using the long-lived worker pool created above (created here,
+                #on first use, so a fully-resumed top_root never spins one up)
+                if pool is None:
+                    pool = mp.Pool()
+                frame_args = [(final_folder,'img_000000',tail_tif,no,force_analysis) for no in frame_nos]
+                pool.map(_process_frame,frame_args)
+
                 #If links are already constructed read frame links and skip the next parts
                 if not new_motility.read_frame_links():
                     new_motility.load_frame1(0)
                     new_motility.read_metadata()
-                
+
                     for no in frame_nos[1:]:
                         print('Making the links: Frame: %d'%(no))
                         new_motility.load_frame2(no)
                         new_motility.make_frame_links()
                         new_motility.frame1 = new_motility.frame2
-                
+
                     #Save the frame-links
                     new_motility.save_links()
-            
+
                 #Process the frame links to create paths, path velocities
                 new_motility.process_frame_links(num_frames_ave)
-            
+
                 #Plot created paths
                 new_motility.plot_2D_path_data(num_frames_ave, extra_fname=out_path_fname)
-            
+
                 if make_overlay_movie:
                     #Make a movie of the filament skeletons overlaid on each path's trajectory, drawn progressively in sync with the current frame
                     new_motility.make_overlay_movie(frame_nos,num_frames_ave,fps=overlay_movie_fps,extra_fname=out_vl_txt_fname)
@@ -480,88 +569,126 @@ def main():
 
                     #Make the movie
                     new_motility.make_movie(extra_fname=out_vl_txt_fname)
-            
-                #If there is no velocity point in the data move on - we need at least 10 points
-                if len(new_motility.full_len_vel) < 10:
-                    continue
-            
-                top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all, num_points_filtered, std_len_filtered, skew_len_filtered = new_motility.plot_length_velocity(extra_fname=out_vl_png_fname, max_vel=plot_ymax, max_length = plot_xmax, min_path_length=min_path_length, percent_tolerance=percent_tolerance, min_points=10, print_plot=True, maxvel_color = maxvel_color, fit_f = fit_function)
 
-                #If eary terminated - skip to next interation
-                if top_5_velocity == -1:
-                    continue
+            #If there is no velocity point in the data move on - we need at least 10 points
+            if len(new_motility.full_len_vel) < 10:
+                continue
 
-                #Add parameters to array
-                combined_stats.append([num_points_filtered,top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_all, mean_len_filtered, mean_len_mobile])
+            top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all, num_points_filtered, std_len_filtered, skew_len_filtered = new_motility.plot_length_velocity(extra_fname=out_vl_png_fname, max_vel=plot_ymax, max_length = plot_xmax, min_path_length=min_path_length, percent_tolerance=percent_tolerance, min_points=10, print_plot=True, maxvel_color = maxvel_color, fit_f = fit_function)
 
-                #Add a row to the per-movie summary CSV data
-                summary_rows.append([summary_row_label, summary_row_pca, top_5_velocity, MVEL_filtered, MVEL, percent_stuck, mean_len_filtered, std_len_filtered, skew_len_filtered] + [param_values[c] for c in param_columns])
+            #If eary terminated - skip to next interation
+            if top_5_velocity == -1:
+                continue
 
-                #Write length-velocity data
-                new_motility.write_length_velocity(extra_fname=out_vl_txt_fname)
-            
-                #Add length-velocity data to combined data set
-                combined_full_len_vel.append(new_motility.full_len_vel)
-                combined_max_len_vel.append(new_motility.max_len_vel)
-            
-                #Update the counters
-                all_data_counter += 1
-            
+            #Add parameters to array
+            combined_stats.append([num_points_filtered,top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_all, mean_len_filtered, mean_len_mobile])
+
+            #Add a row to the per-movie summary CSV data
+            summary_rows.append([summary_row_label, summary_row_pca, top_5_velocity, MVEL_filtered, MVEL, percent_stuck, mean_len_filtered, std_len_filtered, skew_len_filtered] + [param_values[c] for c in param_columns])
+
+            #Write length-velocity data
+            new_motility.write_length_velocity(extra_fname=out_vl_txt_fname)
+
+            #Record the parameters behind this result, so a later run can
+            #tell whether it's still safe to resume past it
+            _write_params_marker(params_fname,analysis_param_values)
+
+            #Add length-velocity data to combined data set
+            combined_full_len_vel.append(new_motility.full_len_vel)
+            combined_max_len_vel.append(new_motility.max_len_vel)
+
+            #Update the counters
+            all_data_counter += 1
+
             end_t = time.time()
             print("Time spent: %.1f"%(end_t-start_t))
-    
-    
-        #Shut down the worker pool for this top_root
-        pool.close()
-        pool.join()
+
+
+        #Shut down the worker pool for this top_root, if one was ever created
+        if pool is not None:
+            pool.close()
+            pool.join()
 
         #Go back to main directory
         os.chdir(cwd)
-    
+
         #If there is no data point move on
         if len(combined_full_len_vel) == 0:
             continue
-    
-        #Prompt which files are combined
-        print("Combining data in %s"%(root_header))
-    
-        #Process and write down the combined results 
+
+        #Process and write down the combined results
         combined_full_len_vel = np.vstack(combined_full_len_vel)
         combined_max_len_vel  = np.vstack(combined_max_len_vel)
-    
-        #Motility object for combined lenth-velocity data
-        combined_motility              = motility.Motility()
-        combined_motility.directory    = 'outputs/'+main_out_dir+'/combined'
-        combined_motility.full_len_vel = combined_full_len_vel
-        combined_motility.max_len_vel  = combined_max_len_vel
-        combined_motility.num_frames   = number_of_frames
-        combined_motility.dx           = 1.0*pixel_size
-        combined_motility.max_velocity = 1.0*max_velocity/pixel_size
-        combined_motility.min_velocity = min_velocity
-
-        #Assign the hard-coded parameters
-        combined_motility.overlap_score_cutoff       = overlap_score_cutoff
-        combined_motility.log_area_score_cutoff      = log_area_score_cutoff
-        combined_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
 
         #Total number of points
         total_num_points = len(combined_full_len_vel[:,0])
-    
-    
+
         #If there is no velocity point in the data move on - we need at least 10 points
         if total_num_points  < 10:
             continue
-    
-        #Process data and write results
-        top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered, std_len_filtered, skew_len_filtered = combined_motility.plot_length_velocity(header=root_header+'_', max_vel=plot_ymax, max_length = plot_xmax, min_path_length=min_path_length, percent_tolerance=percent_tolerance, min_points=10, print_plot=True, maxvel_color = maxvel_color, fit_f = fit_function)
-    
-        #If eary terminated - skip to next iteration
-        if top_5_velocity == -1:
-            continue
-    
-        #Write length-velocity data
-        combined_motility.write_length_velocity(header=root_header+'_')
-    
+
+        #The combined result for this top_root can be reused as-is if every
+        #movie under it was already analyzed this run (so the underlying data
+        #can't have changed) and it was last combined with this same set of
+        #movies and analysis parameters - cached in top_root itself (the same
+        #way each movie's own result is), so a resumed run can skip
+        #re-rendering it too instead of re-plotting every already-finished
+        #top_root on the way to the one that actually crashed
+        combined_png_fname    = top_root+'/combined_length_velocity.png'
+        combined_full_fname   = top_root+'/combined_full_length_velocity.txt'
+        combined_max_fname    = top_root+'/combined_max_length_velocity.txt'
+        combined_params_fname = top_root+'/combined_params.txt'
+        combined_param_values = dict(analysis_param_values,movies=','.join(process_folders[top_root]))
+
+        combining_cached = (not force_analysis and not recalculate
+                            and not top_root_reanalyzed
+                            and os.path.isfile(combined_png_fname)
+                            and os.path.isfile(combined_full_fname)
+                            and os.path.isfile(combined_max_fname)
+                            and _params_marker_matches(combined_params_fname,combined_param_values))
+
+        if combining_cached:
+            print("Combining data in %s - already up to date, resuming past it"%(root_header))
+            shutil.copy(combined_png_fname,cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_length_velocity.png')
+            shutil.copy(combined_full_fname,cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_full_length_velocity.txt')
+            shutil.copy(combined_max_fname,cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_max_length_velocity.txt')
+        else:
+            #Prompt which files are combined
+            print("Combining data in %s"%(root_header))
+
+            #Motility object for combined length-velocity data - saved
+            #primarily into top_root (like every other cached result), with
+            #an extra copy mirrored into outputs/combined under its usual name
+            combined_motility              = motility.Motility()
+            combined_motility.directory    = top_root
+            combined_motility.full_len_vel = combined_full_len_vel
+            combined_motility.max_len_vel  = combined_max_len_vel
+            combined_motility.num_frames   = number_of_frames
+            combined_motility.dx           = 1.0*pixel_size
+            combined_motility.max_velocity = 1.0*max_velocity/pixel_size
+            combined_motility.min_velocity = min_velocity
+
+            #Assign the hard-coded parameters
+            combined_motility.overlap_score_cutoff       = overlap_score_cutoff
+            combined_motility.log_area_score_cutoff      = log_area_score_cutoff
+            combined_motility.dif_log_area_score_cutoff  = diff_log_area_score_cutoff
+
+            combined_extra_png = cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_length_velocity.png'
+            combined_extra_txt = cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_'
+
+            #Process data and write results
+            top_5_velocity, percent_stuck, MVEL, MVEL_filtered, max_vel_u, MVIS, mean_len_stuck, mean_len_filtered, mean_len_mobile, mean_len_all,num_points_filtered, std_len_filtered, skew_len_filtered = combined_motility.plot_length_velocity(header='combined_', extra_fname=combined_extra_png, max_vel=plot_ymax, max_length = plot_xmax, min_path_length=min_path_length, percent_tolerance=percent_tolerance, min_points=10, print_plot=True, maxvel_color = maxvel_color, fit_f = fit_function)
+
+            #If eary terminated - skip to next iteration
+            if top_5_velocity == -1:
+                continue
+
+            #Write length-velocity data
+            combined_motility.write_length_velocity(header='combined_',extra_fname=combined_extra_txt)
+
+            #Record the parameters/movie-set behind this cached combination
+            _write_params_marker(combined_params_fname,combined_param_values)
+
         #Combined statistics
         combined_stats = np.array(combined_stats)
         mvals = np.mean(combined_stats,axis=0)
