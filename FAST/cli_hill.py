@@ -34,6 +34,8 @@ def main():
                         help='Subtract pCa 9 mean speed as baseline so no-calcium speed = 0 (applies to -d2 as well when given; ignored if -nl is given)')
     parser.add_argument('-nl', action='store_true', default=False,
                         help='Normalize each curve to its own min/max speed (0-1 scale) before fitting/plotting - the minimum and maximum are taken per curve, not shared across -d/-d2. Ignores -bs. Output files get a "_nl" suffix')
+    parser.add_argument('-fixmin', action='store_true', default=False,
+                        help='Use pCa 9 as the zero baseline (implies -bs, even if -bs isn\'t separately given) and fix Smin at exactly 0 in the fit (a 3-parameter fit over Smax/Ca50/n) so the fitted curve passes through 0 there, instead of leaving Smin as a free parameter that only approximately reaches 0. Applies to -d2 as well when given.')
     args = parser.parse_args()
     parser.print_help()
 
@@ -50,10 +52,10 @@ def main():
                                    speed_col2=args.c2, pca_col2=args.p2,
                                    baseline_subtract=args.bs,
                                    color1=args.col1, color2=args.col2,
-                                   normalize=args.nl)
+                                   normalize=args.nl, fix_smin=args.fixmin)
     else:
         hill.run_hill_fit(args.d, speed_col=args.c, pca_col=args.p,
-                           baseline_subtract=args.bs, normalize=args.nl)
+                           baseline_subtract=args.bs, normalize=args.nl, fix_smin=args.fixmin)
 
 if __name__ == "__main__":
     main()

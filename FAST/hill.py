@@ -92,35 +92,63 @@ def _load_pca_speed(data_file, speed_col, pca_col, baseline_subtract):
     return pCa_data, speed_data
 
 
-def _fit_hill(pCa_data, speed_data):
+def _fit_hill(pCa_data, speed_data, fix_smin=False):
     '''
-    Fit the 4-parameter Hill equation to pCa_data/speed_data and return a dict
-    of everything needed to report and plot the result, including the speed
-    at pCa50 (the midpoint of the fitted curve, i.e. (Smin+Smax)/2 - this is
+    Fit the Hill equation to pCa_data/speed_data and return a dict of
+    everything needed to report and plot the result, including the speed at
+    pCa50 (the midpoint of the fitted curve, i.e. (Smin+Smax)/2 - this is
     exact regardless of Ca50/n, since at Ca=Ca50 the Hill term is always 1/2)
     and its 95% confidence interval where computable.
+
+    If fix_smin is True, Smin is fixed at exactly 0 (a 3-parameter fit over
+    Smax/Ca50/n instead of 4). This only makes sense once the data has
+    already been re-centered around a true zero baseline - callers pair this
+    with baseline-subtracting the raw data first (see run_hill_fit/
+    run_hill_fit_compare), otherwise forcing the curve through 0 when the
+    data's real floor is well above 0 distorts every other parameter.
     '''
-    Smin0  = 0.0
     Smax0  = float(speed_data.max())
     Ca50_0 = 10.0 ** (-float(np.median(pCa_data)))
     n0     = 2.0
 
+    if fix_smin:
+        def _model(pCa, Smax, Ca50, n):
+            return hill_func(pCa, 0.0, Smax, Ca50, n)
+        p0     = [Smax0, Ca50_0, n0]
+        bounds = ([Smax0 * 0.5, 1e-10, 0.1],
+                  [Smax0 * 3,  1e-3,  20.0])
+    else:
+        def _model(pCa, Smin, Smax, Ca50, n):
+            return hill_func(pCa, Smin, Smax, Ca50, n)
+        p0     = [0.0, Smax0, Ca50_0, n0]
+        bounds = ([-Smax0 * 0.2, Smax0 * 0.5, 1e-10, 0.1],
+                  [ Smax0 * 0.2, Smax0 * 3,  1e-3,  20.0])
+
     try:
-        popt, pcov = curve_fit(
-            hill_func, pCa_data, speed_data,
-            p0=[Smin0, Smax0, Ca50_0, n0],
-            bounds=([-Smax0 * 0.2, Smax0 * 0.5, 1e-10, 0.1],
-                    [ Smax0 * 0.2, Smax0 * 3,  1e-3,  20.0]),
-            maxfev=50000
-        )
+        popt, pcov = curve_fit(_model, pCa_data, speed_data, p0=p0, bounds=bounds, maxfev=50000)
     except RuntimeError as e:
         sys.exit(f"Curve fitting failed: {e}")
 
-    Smin_fit, Smax_fit, Ca50_fit, n_fit = popt
+    if fix_smin:
+        Smax_fit, Ca50_fit, n_fit = popt
+        Smin_fit = 0.0
+        # Expand back to the full 4-parameter (Smin,Smax,Ca50,n) representation
+        # so downstream code doesn't need to special-case the fixed-Smin case;
+        # Smin's row/column in the covariance matrix are exactly 0, correctly
+        # reflecting that it carries no uncertainty (it isn't estimated)
+        popt = np.array([Smin_fit, Smax_fit, Ca50_fit, n_fit])
+        full_pcov = np.zeros((4, 4))
+        full_pcov[1:, 1:] = pcov
+        pcov = full_pcov
+        num_fit_params = 3
+    else:
+        Smin_fit, Smax_fit, Ca50_fit, n_fit = popt
+        num_fit_params = 4
+
     pCa50_fit   = -np.log10(Ca50_fit)
     perr        = np.sqrt(np.diag(pcov))
-    # 95% CI: t-critical for n_data - 4 degrees of freedom (4 parameters)
-    t_crit      = t_dist.ppf(0.975, df=max(len(pCa_data) - 4, 1))
+    # 95% CI: t-critical for n_data - num_fit_params degrees of freedom
+    t_crit      = t_dist.ppf(0.975, df=max(len(pCa_data) - num_fit_params, 1))
     ci          = t_crit * perr
     # pCa50 CI via error propagation: d(pCa50)/d(Ca50) = -1/(Ca50 * ln10)
     pCa50_ci    = t_crit * perr[2] / (Ca50_fit * np.log(10))
@@ -132,7 +160,7 @@ def _fit_hill(pCa_data, speed_data):
 
     # Speed at pCa50 = (Smin+Smax)/2 exactly (the Hill term is 1/2 at Ca=Ca50
     # regardless of Ca50/n), with its CI via error propagation through
-    # Smin/Smax and their covariance
+    # Smin/Smax and their covariance (0 contribution from Smin when fixed)
     speed_at_pCa50    = (Smin_fit + Smax_fit) / 2.0
     var_speed_pCa50   = 0.25 * (pcov[0, 0] + pcov[1, 1] + 2 * pcov[0, 1])
     if np.isfinite(var_speed_pCa50) and var_speed_pCa50 >= 0:
@@ -141,7 +169,7 @@ def _fit_hill(pCa_data, speed_data):
         speed_at_pCa50_ci = None
 
     return {
-        'popt': popt, 'pcov': pcov, 'ci': ci, 't_crit': t_crit,
+        'popt': popt, 'pcov': pcov, 'ci': ci, 't_crit': t_crit, 'fix_smin': fix_smin,
         'Smin_fit': Smin_fit, 'Smax_fit': Smax_fit, 'Ca50_fit': Ca50_fit, 'n_fit': n_fit,
         'pCa50_fit': pCa50_fit, 'pCa50_ci': pCa50_ci,
         'r_squared': r_squared, 'rmse': rmse, 'speed_pred': speed_pred,
@@ -166,7 +194,10 @@ def _format_fit_block(label, pCa_data, speed_data, fit, normalized=False):
     lines.append("=" * 60)
     lines.append("")
     lines.append("Fitted Parameters (95% confidence interval)")
-    lines.append(f"  Smin             = {fit['Smin_fit']:10.4f} +/- {fit['ci'][0]:.4f}{su}")
+    if fit['fix_smin']:
+        lines.append(f"  Smin             = {fit['Smin_fit']:10.4f}{su} (fixed via -fixmin, not a free parameter)")
+    else:
+        lines.append(f"  Smin             = {fit['Smin_fit']:10.4f} +/- {fit['ci'][0]:.4f}{su}")
     lines.append(f"  Smax             = {fit['Smax_fit']:10.4f} +/- {fit['ci'][1]:.4f}{su}")
     lines.append(f"  Ca50             = {fit['Ca50_fit']:10.4e} +/- {fit['ci'][2]:.4e} M")
     lines.append(f"  pCa50            = {fit['pCa50_fit']:10.4f} +/- {fit['pCa50_ci']:.4f}")
@@ -201,7 +232,7 @@ def _fit_label(fit, prefix, normalized=False):
             f'S(pCa50)={fit["speed_at_pCa50"]:.2f}{su}')
 
 
-def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=False, normalize=False):
+def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=False, normalize=False, fix_smin=False):
     parent_dir  = os.path.dirname(os.path.abspath(data_file))
     csv_stem    = os.path.splitext(os.path.basename(data_file))[0]
     short_label = _short_label(csv_stem)
@@ -212,11 +243,16 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=
     # becomes 0), so baseline subtraction would be redundant
     if normalize:
         baseline_subtract = False
+    # Fixing Smin at 0 in the fit (-fixmin) only makes sense once the data's
+    # own baseline has been re-centered around 0 too, so -fixmin implies -bs
+    # even if -bs wasn't separately passed
+    elif fix_smin:
+        baseline_subtract = True
 
     pCa_data, speed_data = _load_pca_speed(data_file, speed_col, pca_col, baseline_subtract)
     if normalize:
         speed_data = _normalize_curve(speed_data, data_file)
-    fit = _fit_hill(pCa_data, speed_data)
+    fit = _fit_hill(pCa_data, speed_data, fix_smin=fix_smin)
 
     # ── Text output ────────────────────────────────────────────────────────────
     txt_file = out_prefix + '.txt'
@@ -251,7 +287,7 @@ def run_hill_fit(data_file, speed_col='speed', pca_col='pCa', baseline_subtract=
 
 def run_hill_fit_compare(data_file1, data_file2, speed_col='speed', pca_col='pCa',
                           speed_col2=None, pca_col2=None, baseline_subtract=False,
-                          color1='black', color2='red', normalize=False):
+                          color1='black', color2='red', normalize=False, fix_smin=False):
     '''
     Fit two pCa/speed data files independently and plot both fits on the same
     graph (data_file1 in color1, data_file2 in color2 - default black/red),
@@ -275,6 +311,11 @@ def run_hill_fit_compare(data_file1, data_file2, speed_col='speed', pca_col='pCa
     # becomes 0), so baseline subtraction would be redundant
     if normalize:
         baseline_subtract = False
+    # Fixing Smin at 0 in the fit (-fixmin) only makes sense once the data's
+    # own baseline has been re-centered around 0 too, so -fixmin implies -bs
+    # even if -bs wasn't separately passed
+    elif fix_smin:
+        baseline_subtract = True
 
     pCa1, speed1 = _load_pca_speed(data_file1, speed_col, pca_col, baseline_subtract)
     pCa2, speed2 = _load_pca_speed(data_file2, speed_col2, pca_col2, baseline_subtract)
@@ -283,8 +324,8 @@ def run_hill_fit_compare(data_file1, data_file2, speed_col='speed', pca_col='pCa
         speed1 = _normalize_curve(speed1, data_file1)
         speed2 = _normalize_curve(speed2, data_file2)
 
-    fit1 = _fit_hill(pCa1, speed1)
-    fit2 = _fit_hill(pCa2, speed2)
+    fit1 = _fit_hill(pCa1, speed1, fix_smin=fix_smin)
+    fit2 = _fit_hill(pCa2, speed2, fix_smin=fix_smin)
 
     # ── Text output ────────────────────────────────────────────────────────────
     txt_file = out_prefix + '.txt'

@@ -31,6 +31,7 @@ This fork started as a minor update to Tural Aksel's original FASTrack program t
 - `hill` gains a `-d2` option to fit and plot a second pCa/speed file alongside the first, plus a `-nl` option to normalize each curve to its own 0-1 speed range for shape-only comparisons (see "Hill equation fitting" below). Both `hill` plots now report the fitted speed at pCa50, label curves with a short name truncated to the input filename's first underscore-delimited token (also used for output filenames), and no longer show a separate legend entry for the underlying data points.
 - Fixed a crash (`FileNotFoundError` on a missing `.in` file) when a leaf directory has un-exploded raw tif frames (e.g. a MicroManager `Default` acquisition folder that was never run through `stack2tifs`) sitting alongside properly-exploded ones elsewhere in the same batch.
 - `fast` now resumes automatically after a crash or interruption, skipping movies (and **LEVEL2/LEVEL3** combined results) that a previous run already finished with the same analysis parameters, instead of reprocessing the whole batch from scratch (see "Resuming after a crash or interruption" below).
+- `hill` gains a `-fixmin` option that uses pCa 9 as the zero baseline (implying `-bs`) and fixes `S_min` at exactly 0 in the fit itself (a 3-parameter fit over `S_max`/`Ca50`/`n`), so the fitted curve actually passes through 0 rather than landing only approximately there (see "Hill equation fitting" below).
 
 **No changes were made to the core scientific calculations/algorithms** beyond the bug fixes noted above, which corrected unintended deviations from the original scoring logic rather than introducing new analysis behavior. **You should still cite the original paper by Tural Aksel** (see citation above) if you use this software or its outputs.
 
@@ -268,18 +269,19 @@ After installation, don't move the `FASTrack` directory to a different location 
 - Provide a CSV or Excel (`.xlsx`/`.xls`) file that contains at minimum a column of pCa values and a column of speed values. If multiple rows share the same pCa value they are averaged before fitting.
 
     ```
-    hill -d FILE [-c SPEED_COLUMN] [-p PCA_COLUMN] [-bs]
+    hill -d FILE [-c SPEED_COLUMN] [-p PCA_COLUMN] [-bs] [-fixmin]
     ```
 
     - **FILE** (`-d`): path to the CSV or Excel input file **(required)**.
     - **SPEED_COLUMN** (`-c`): name of the speed column in the file **(Default: `speed`)**.
     - **PCA_COLUMN** (`-p`): name of the pCa column in the file **(Default: `pCa`)**.
-    - **`-bs`**: subtract the mean speed at pCa 9 from all speed values before fitting, so the baseline (no-calcium) speed is forced to zero **(Default: off)**.
+    - **`-bs`**: subtract the mean speed at pCa 9 from all speed values before fitting, so the baseline (no-calcium) speed is forced to zero. Note this only zeroes that one data point - the fitted curve's own `S_min` is still a free parameter and can land slightly away from 0 (e.g. -3.3 nm/s) even after this shift **(Default: off)**.
+    - **`-fixmin`**: use pCa 9 as the zero baseline (this implies `-bs`, even if `-bs` isn't separately given - fixing the curve at 0 without first re-centering the data around a true zero would distort every other fitted parameter) and fix `S_min` at exactly 0 in the fit itself (a 3-parameter fit over `S_max`/`Ca50`/`n` instead of 4), so the fitted curve actually passes through 0 rather than landing only approximately there **(Default: off)**.
 
 - To compare two conditions on the same graph, pass a second file with `-d2`. Each file is still fit independently (its own Hill curve, its own reported parameters), but both are drawn on one plot and reported in one text file:
 
     ```
-    hill -d FILE1 -d2 FILE2 [-c2 SPEED_COLUMN2] [-p2 PCA_COLUMN2] [-col1 COLOR1] [-col2 COLOR2] [-bs] [-nl]
+    hill -d FILE1 -d2 FILE2 [-c2 SPEED_COLUMN2] [-p2 PCA_COLUMN2] [-col1 COLOR1] [-col2 COLOR2] [-bs] [-nl] [-fixmin]
     ```
 
     - **FILE2** (`-d2`): path to a second CSV or Excel input file, fit and plotted alongside `-d` **(optional - omitting it runs the original single-file behavior)**.
@@ -287,6 +289,7 @@ After installation, don't move the `FASTrack` directory to a different location 
     - **`-bs`** applies to both files when `-d2` is given, and is ignored (with a notice) if `-nl` is also given.
     - **COLOR1** / **COLOR2** (`-col1`/`-col2`): line and marker color for `-d` and `-d2` respectively **(Default: `black` for `-d`, `red` for `-d2`)**.
     - **`-nl`**: normalize each curve to its own speed range before fitting/plotting - see "Normalized graphs" below.
+    - **`-fixmin`** applies to both files when `-d2` is given.
 
 - The 4-parameter Hill equation used is:
 
